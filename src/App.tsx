@@ -1,7 +1,8 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { lazy, Suspense } from 'react'
+import { Suspense } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { Background } from './components/Background'
+import { ErrorBoundary, lazyWithReload } from './components/ErrorBoundary'
 import { Logo } from './components/Logo'
 import { FullPageLoader } from './components/ui'
 import CrewHub from './pages/CrewHub'
@@ -9,8 +10,8 @@ import Home from './pages/Home'
 import NotFound from './pages/NotFound'
 
 // Map-heavy screens load on demand, so the first page a phone opens stays small.
-const CreateRound = lazy(() => import('./pages/CreateRound'))
-const Round = lazy(() => import('./pages/Round'))
+const CreateRound = lazyWithReload(() => import('./pages/CreateRound'))
+const Round = lazyWithReload(() => import('./pages/Round'))
 
 export default function App() {
   const location = useLocation()
@@ -35,6 +36,7 @@ export default function App() {
           exit={{ opacity: 0, y: -12, filter: 'blur(6px)' }}
           transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
         >
+          <ErrorBoundary>
           <Suspense fallback={<FullPageLoader label="Loading…" />}>
           <Routes location={location}>
             <Route path="/" element={<Home />} />
@@ -44,6 +46,7 @@ export default function App() {
             <Route path="*" element={<NotFound />} />
           </Routes>
           </Suspense>
+          </ErrorBoundary>
         </motion.main>
       </AnimatePresence>
     </>
