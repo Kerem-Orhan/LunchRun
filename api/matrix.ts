@@ -24,6 +24,16 @@ interface LatLng {
 const MAX_PLACES = 50 // ORS free tier allows ~3,500 matrix cells per request; we stay well under.
 const PROFILES = { walking: 'foot-walking', driving: 'driving-car' } as const
 export const WALK_METERS_PER_MINUTE = 80 // ≈ 4.8 km/h, a typical walking pace
+const DETOUR_FACTOR = 1.3 // streets vs. straight line (same value as src/lib/routing.ts)
+
+/** Straight-line distance in meters (haversine). */
+function straightMeters(a: LatLng, b: LatLng): number {
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const h =
+    Math.sin(toRad(b.lat - a.lat) / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(toRad(b.lng - a.lng) / 2) ** 2
+  return 2 * 6_371_000 * Math.asin(Math.sqrt(h))
+}
 
 class OrsError extends Error {
   constructor(public status: number, public detail: string | null) {
@@ -108,8 +118,15 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // 2) Walking fallback: street distances from the driving network, at walking pace.
+    //    Cars must follow one-way streets and loop around blocks, which walkers don't,
+    //    so each distance is capped at straight-line × detour factor.
     const meters = await orsMatrix(key, PROFILES.driving, locations, 'distance', 8_000)
-    return json({ minutes: meters.map((m) => (m == null ? null : round1(m / WALK_METERS_PER_MINUTE))), estimated: true })
+    const minutes = meters.map((m, i) => {
+      const cap = straightMeters(start, places[i]) * DETOUR_FACTOR
+      const walk = m == null ? cap : Math.min(m, cap)
+      return round1(walk / WALK_METERS_PER_MINUTE)
+    })
+    return json({ minutes, estimated: true })
   } catch (err) {
     if (err instanceof OrsError) {
       return json({ error: 'Routing service error', orsStatus: err.status, detail: err.detail }, err.status === 429 ? 429 : 502)

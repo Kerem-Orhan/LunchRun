@@ -20,4 +20,7 @@ The Congressional App Challenge asks entrants to disclose AI use. This file reco
 | 2026-10-18 | `src/lib/feasibility.ts` + tests: implements my time formula and Easy/Tight/Hidden rules, "leave by" time, distance pre-filter | 17 tests |
 | 2026-10-18 | `src/lib/voting.ts` + tests: implements my Borda / veto / repeat-penalty / tie-break rules, returns the full scoring table | 16 tests |
 
+| 2026-10-18 | Debugged OpenRouteService (walking service down, driving fine) and Overpass outages; added fallbacks | Walking falls back to street distance at walking pace, then straight-line estimate |
+| 2026-10-18 | `overpass.ts`, `routing.ts`, `places.ts` + tests, `MapView` component | |
+
 <!-- Add a row each day. -->
