@@ -8,7 +8,7 @@ import { FullPageLoader, Notice, Screen } from '../components/ui'
 import { VoteView } from '../components/VoteView'
 import { useRound } from '../hooks/useRound'
 import { joinRound } from '../lib/db'
-import { getClientId, getDisplayName, rememberCrew } from '../lib/identity'
+import { getClientId, getDisplayName } from '../lib/identity'
 
 /** /r/:roundId — the live lobby + ballot while voting, then the results. */
 export default function Round() {
@@ -23,7 +23,7 @@ function RoundInner() {
   const { roundId } = useParams()
   const navigate = useNavigate()
   const data = useRound(roundId)
-  const { round, crew, me, status } = data
+  const { round, me, status } = data
   const joining = useRef(false)
 
   // Opening the page = joining the round (once per device).
@@ -34,10 +34,6 @@ function RoundInner() {
       .then(() => data.refetch('members'))
       .catch(() => (joining.current = false))
   }, [status, round, me, data])
-
-  useEffect(() => {
-    if (crew) rememberCrew(crew.code, crew.name)
-  }, [crew])
 
   if (status === 'loading') return <FullPageLoader label="Loading lunch…" />
   if (status === 'missing')

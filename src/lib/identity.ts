@@ -41,26 +41,3 @@ export function getClientId(): string {
   return id
 }
 
-// ---------- Recent crews (quick links on Home) ----------
-
-const CREWS_KEY = 'lunchrun:crews'
-
-export interface RecentCrew {
-  code: string
-  name: string
-}
-
-export function listRecentCrews(): RecentCrew[] {
-  try {
-    const parsed = JSON.parse(read(CREWS_KEY) ?? '[]')
-    return Array.isArray(parsed) ? parsed.slice(0, 5) : []
-  } catch {
-    return []
-  }
-}
-
-/** Moves this crew to the front of the recent list (max 5). */
-export function rememberCrew(code: string, name: string) {
-  const rest = listRecentCrews().filter((c) => c.code !== code)
-  write(CREWS_KEY, JSON.stringify([{ code, name }, ...rest].slice(0, 5)))
-}

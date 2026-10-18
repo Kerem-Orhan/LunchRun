@@ -168,7 +168,7 @@
   filter: invert(100%) hue-rotate(180deg) brightness(0.92) contrast(0.85) saturate(0.35) sepia(0.15);
 }
 
-.leaflet-container {
+.leaflet-container.leaflet-container {
   font-family: var(--font-sans);
   background: var(--color-ink);
 }

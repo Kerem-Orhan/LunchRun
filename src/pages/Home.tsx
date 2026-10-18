@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { ArrowRight, ChevronRight, Clock3, MapPin, Scale, Users } from 'lucide-react'
+import { ArrowRight, Clock3, MapPin, Scale, Users } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '../components/Button'
 import { CodeInput } from '../components/CodeInput'
 import { LunchClock, type ClockSegment } from '../components/LunchClock'
@@ -9,7 +9,7 @@ import { TextField } from '../components/TextField'
 import { Spinner } from '../components/ui'
 import { isValidCode } from '../lib/codes'
 import { createCrew, getCrewByCode } from '../lib/db'
-import { getDisplayName, listRecentCrews, rememberCrew, setDisplayName } from '../lib/identity'
+import { getDisplayName, setDisplayName } from '../lib/identity'
 
 type Tab = 'create' | 'join'
 
@@ -43,11 +43,9 @@ export default function Home() {
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('create')
   const [name, setName] = useState(getDisplayName)
-  const [crewName, setCrewName] = useState('')
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [recent] = useState(listRecentCrews)
 
   const nameOk = name.trim().length > 0
 
@@ -58,9 +56,10 @@ export default function Home() {
     setBusy(true)
     setError(null)
     try {
-      const crew = await createCrew(crewName.trim() || `${name.trim()}’s crew`)
-      rememberCrew(crew.code, crew.name)
-      navigate(`/c/${crew.code}`)
+      // Crew names aren't shown anywhere; the DB just needs one.
+      const crew = await createCrew('Lunch crew')
+      // Straight to setting up today's lunch — friends join from the code/QR shown there.
+      navigate(`/c/${crew.code}/new`)
     } catch (err) {
       setError((err as Error).message)
       setBusy(false)
@@ -76,11 +75,10 @@ export default function Home() {
     try {
       const crew = await getCrewByCode(fullCode)
       if (!crew) {
-        setError(`No crew with code ${fullCode}. Double-check it with your friend.`)
+        setError(`No lunch with code ${fullCode}. Double-check it with your friend.`)
         setBusy(false)
         return
       }
-      rememberCrew(crew.code, crew.name)
       navigate(`/c/${crew.code}`)
     } catch (err) {
       setError((err as Error).message)
@@ -159,7 +157,7 @@ export default function Home() {
                     transition={{ type: 'spring', stiffness: 420, damping: 34 }}
                   />
                 )}
-                {t === 'create' ? 'Start a crew' : 'Join with code'}
+                {t === 'create' ? 'Start a lunch' : 'Join with code'}
               </button>
             ))}
           </div>
@@ -188,16 +186,8 @@ export default function Home() {
                 transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
                 className="mt-4 space-y-5"
               >
-                <TextField
-                  id="crew"
-                  label="Crew name"
-                  placeholder="5th period lunch"
-                  value={crewName}
-                  maxLength={32}
-                  onChange={(e) => setCrewName(e.target.value)}
-                />
                 <Button type="submit" disabled={!nameOk || busy}>
-                  {busy ? <Spinner className="size-5" /> : <>Create crew <ArrowRight className="size-5" /></>}
+                  {busy ? <Spinner className="size-5" /> : <>Start a lunch <ArrowRight className="size-5" /></>}
                 </Button>
               </motion.form>
             ) : (
@@ -211,11 +201,11 @@ export default function Home() {
                 className="mt-4 space-y-5"
               >
                 <div>
-                  <span className="mb-1.5 block text-[13px] font-medium text-muted">Crew code</span>
+                  <span className="mb-1.5 block text-[13px] font-medium text-muted">Code from your friend</span>
                   <CodeInput value={code} onChange={setCode} onComplete={(c) => handleJoin(undefined, c)} />
                 </div>
                 <Button type="submit" disabled={!nameOk || !isValidCode(code) || busy}>
-                  {busy ? <Spinner className="size-5" /> : <>Join crew <ArrowRight className="size-5" /></>}
+                  {busy ? <Spinner className="size-5" /> : <>Join <ArrowRight className="size-5" /></>}
                 </Button>
               </motion.form>
             )}
@@ -239,28 +229,6 @@ export default function Home() {
             <Clock3 className="size-3.5" /> No accounts. Takes about 20 seconds.
           </p>
         </motion.div>
-
-        {recent.length > 0 && (
-          <motion.div custom={4} variants={rise} initial="hidden" animate="show" className="mt-4">
-            <p className="mb-2 px-1 text-xs font-semibold tracking-[0.18em] text-dim uppercase">Your crews</p>
-            <ul className="grid gap-2">
-              {recent.map((c) => (
-                <li key={c.code}>
-                  <Link
-                    to={`/c/${c.code}`}
-                    className="group flex items-center justify-between rounded-2xl bg-cream/[0.03] px-4 py-3 ring-1 ring-cream/10 transition hover:bg-cream/[0.06]"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate font-semibold">{c.name}</span>
-                      <span className="font-mono text-xs tracking-widest text-dim">{c.code}</span>
-                    </span>
-                    <ChevronRight className="size-5 text-dim transition group-hover:translate-x-0.5 group-hover:text-ember" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </motion.div>
-        )}
       </section>
 
       {/* Clock on mobile sits below the card, so the main action stays above the fold */}

@@ -1,11 +1,10 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, Crown, Map as MapIcon, Pencil, Send, Users } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import type { useRound } from '../hooks/useRound'
-import { decideRound, setPriceTag, submitVote } from '../lib/db'
+import { decideRound, submitVote } from '../lib/db'
 import { formatTime, lunchEndsAt } from '../lib/round'
-import type { PlaceRow, PriceTag } from '../lib/types'
+import type { PlaceRow } from '../lib/types'
 import { everyoneHasVoted } from '../lib/voting'
 import { Button } from './Button'
 import { MapView } from './MapView'
@@ -13,8 +12,6 @@ import { PlaceCard } from './PlaceCard'
 import { Avatar, EASE, Screen, ShareButton, Spinner } from './ui'
 
 type RoundData = ReturnType<typeof useRound>
-
-const PRICE_FILTERS: (PriceTag | 'all')[] = ['all', '$', '$$', '$$$']
 
 export function VoteView({ data }: { data: RoundData }) {
   const { round, crew, places, members, votes, me, myVote, isCreator, result } = data
@@ -25,7 +22,6 @@ export function VoteView({ data }: { data: RoundData }) {
   const [deciding, setDeciding] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showMap, setShowMap] = useState(false)
-  const [priceFilter, setPriceFilter] = useState<PriceTag | 'all'>('all')
   const [selected, setSelected] = useState<string | null>(null)
   const loadedVote = useRef(false)
 
@@ -56,7 +52,7 @@ export function VoteView({ data }: { data: RoundData }) {
   if (!round) return null
 
   const placeById = new Map(places.map((p) => [p.id, p]))
-  const visible = priceFilter === 'all' ? places : places.filter((p) => p.price_tag === priceFilter)
+  const visible = places
 
   function togglePick(id: string) {
     if (!editing) setEditing(true)
@@ -111,11 +107,7 @@ export function VoteView({ data }: { data: RoundData }) {
     <Screen>
       {/* ---------- Header ---------- */}
       <div className="mb-5">
-        {crew && (
-          <Link to={`/c/${crew.code}`} className="text-xs font-semibold tracking-[0.18em] text-ember uppercase hover:text-ember-soft">
-            {crew.name}
-          </Link>
-        )}
+        {crew && <p className="font-mono text-xs font-semibold tracking-[0.2em] text-ember">CODE {crew.code}</p>}
         <h1 className="mt-1 font-display text-[clamp(2rem,7vw,2.75rem)] leading-[0.95] font-extrabold tracking-[-0.03em]">Pick your top 3</h1>
         <p className="mt-2 text-[15px] text-muted">
           Tap in order of preference. One “No way” veto. Lunch ends <span className="font-semibold text-cream">{formatTime(lunchEndsAt(round))}</span>.
@@ -148,7 +140,7 @@ export function VoteView({ data }: { data: RoundData }) {
               <p className="truncate text-xs text-dim">{members.map((m) => m.display_name).join(', ') || 'Waiting for people…'}</p>
             </div>
           </div>
-          <ShareButton url={shareUrl} title={crew?.name ?? 'Lunch'} />
+          <ShareButton url={shareUrl} title="LunchRun" />
         </div>
         {/* Progress bar */}
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-ink-3">
@@ -165,18 +157,6 @@ export function VoteView({ data }: { data: RoundData }) {
         >
           <MapIcon className="size-4" /> Map
         </button>
-        <div className="flex gap-1 rounded-full bg-ink/60 p-1 ring-1 ring-cream/10">
-          {PRICE_FILTERS.map((f) => (
-            <button
-              key={f}
-              type="button"
-              onClick={() => setPriceFilter(f)}
-              className={`h-7 rounded-full px-2.5 font-mono text-xs font-semibold transition ${priceFilter === f ? 'bg-cream text-ink' : 'text-muted hover:text-cream'}`}
-            >
-              {f === 'all' ? 'All' : f}
-            </button>
-          ))}
-        </div>
       </div>
 
       <AnimatePresence initial={false}>
@@ -210,15 +190,9 @@ export function VoteView({ data }: { data: RoundData }) {
             highlighted={selected === p.id}
             onPick={() => togglePick(p.id)}
             onVeto={() => toggleVeto(p.id)}
-            onPrice={(tag) => setPriceTag(p.id, tag).catch((e) => setError(e.message))}
           />
         ))}
       </ul>
-      {visible.length === 0 && (
-        <p className="rounded-2xl px-4 py-8 text-center text-sm text-dim ring-1 ring-cream/10">
-          No places tagged {priceFilter} yet. Tap the <span className="font-mono">$?</span> chip on a card to tag its price.
-        </p>
-      )}
       <p className="mt-4 px-1 text-xs text-dim">Diet tags come from OpenStreetMap and may be incomplete. Always double-check.</p>
 
       {/* ---------- Sticky bar ---------- */}

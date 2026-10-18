@@ -223,3 +223,44 @@ export function subscribeToCrew(crewId: string, onChange: () => void): () => voi
     client.removeChannel(channel)
   }
 }
+
+// ---------- Presence (who's here before the vote starts) ----------
+
+export interface PresentPerson {
+  clientId: string
+  name: string
+  host: boolean
+}
+
+/**
+ * Announces "I'm here" on the crew's presence channel and reports everyone else
+ * who is. Nothing is stored in the database — it disappears when the tab closes.
+ * The host sees joiners while still adjusting lunch settings.
+ */
+export function joinCrewPresence(
+  crewId: string,
+  me: PresentPerson,
+  onChange: (people: PresentPerson[]) => void,
+): () => void {
+  if (!supabase) return () => {}
+  const client = supabase
+  const channel = client.channel(`presence:${crewId}`, { config: { presence: { key: me.clientId } } })
+
+  channel
+    .on('presence', { event: 'sync' }, () => {
+      const state = channel.presenceState<PresentPerson>()
+      // One entry per device (a device can have several tabs open).
+      const people = Object.values(state)
+        .map((entries) => entries[0])
+        .filter(Boolean)
+        .map(({ clientId, name, host }) => ({ clientId, name, host }))
+      onChange(people)
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') channel.track(me)
+    })
+
+  return () => {
+    client.removeChannel(channel)
+  }
+}

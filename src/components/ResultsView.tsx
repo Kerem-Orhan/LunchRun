@@ -113,7 +113,7 @@ export function ResultsView({ data }: { data: RoundData }) {
           <Icon className="size-8" />
         </motion.div>
         <p className="relative mt-4 flex items-center justify-center gap-1.5 text-xs font-semibold tracking-[0.2em] text-ember uppercase">
-          <Trophy className="size-3.5" /> {crew?.name ?? 'Today'}’s pick
+          <Trophy className="size-3.5" /> Today’s pick
         </p>
         <motion.h1
           initial={{ opacity: 0, y: 14 }}
@@ -270,10 +270,7 @@ export function ResultsView({ data }: { data: RoundData }) {
       </Card>
 
       {crew && (
-        <div className="mt-6 grid grid-cols-2 gap-2">
-          <Button variant="ghost" onClick={() => navigate(`/c/${crew.code}`)}>
-            Crew page
-          </Button>
+        <div className="mt-6">
           <Button variant="ghost" onClick={() => navigate(`/c/${crew.code}/new`)}>
             <Plus className="size-5" /> New lunch
           </Button>

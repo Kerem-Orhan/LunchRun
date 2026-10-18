@@ -5,11 +5,11 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Button } from '../components/Button'
 import { MapView } from '../components/MapView'
 import { NameGate } from '../components/NameGate'
-import { EASE, FullPageLoader, Notice, Screen, ScreenHeader, Segmented, Spinner } from '../components/ui'
-import { BALLOT_SIZE, createRound, getCrewByCode } from '../lib/db'
+import { Avatar, EASE, FullPageLoader, Notice, QRCode, Screen, ScreenHeader, Segmented, ShareButton, Spinner } from '../components/ui'
+import { BALLOT_SIZE, createRound, getCrewByCode, joinCrewPresence, type PresentPerson } from '../lib/db'
 import { DEFAULT_BUFFER_MINUTES, DEFAULT_EAT_MINUTES, PREFILTER_RADIUS_METERS, type LatLng, type RoundRules, type TravelMode } from '../lib/feasibility'
 import { getCurrentPosition, searchAddress, type GeoResult } from '../lib/geocode'
-import { getClientId } from '../lib/identity'
+import { getClientId, getDisplayName } from '../lib/identity'
 import { fetchNearbyPlaces, type OsmPlace } from '../lib/overpass'
 import { rankReachable } from '../lib/places'
 import { fetchTravelMinutes } from '../lib/routing'
@@ -63,7 +63,7 @@ function CreateRoundInner() {
   const [lunchMinutes, setLunchMinutes] = useState(35)
   const [customLength, setCustomLength] = useState(false)
   const [startsAt, setStartsAt] = useState(nowHHMM)
-  const [mode, setMode] = useState<TravelMode>('walking')
+  const [mode, setMode] = useState<TravelMode>('driving')
   const [eatMinutes, setEatMinutes] = useState(DEFAULT_EAT_MINUTES)
   const [bufferMinutes, setBufferMinutes] = useState(DEFAULT_BUFFER_MINUTES)
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -154,7 +154,7 @@ function CreateRoundInner() {
   if (crew === null)
     return (
       <Screen>
-        <Notice icon={<SearchX className="size-7" />} title="Crew not found" body="This link doesn’t match a crew." action={<Button onClick={() => navigate('/')}>Back home</Button>} />
+        <Notice icon={<SearchX className="size-7" />} title="Lunch not found" body="This link doesn’t match a lunch code." action={<Button onClick={() => navigate('/')}>Back home</Button>} />
       </Screen>
     )
 
@@ -163,7 +163,9 @@ function CreateRoundInner() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,26rem)_1fr] lg:gap-8">
         {/* ---------- Left: the rules ---------- */}
         <div>
-          <ScreenHeader back={`/c/${crew.code}`} eyebrow={crew.name} title="Today’s lunch" />
+          <ScreenHeader back="/" eyebrow="You’re the host" title="Today’s lunch" />
+
+          <InviteCard code={crew.code} crewId={crew.id} />
 
           <Section n={1} title="Where are you leaving from?">
             <LocationPicker value={start} onChange={chooseStart} />
@@ -541,5 +543,65 @@ function Stat({ value, label, accent }: { value: number; label: string; accent: 
       </motion.p>
       <p className="text-xs font-medium text-muted">{label}</p>
     </div>
+  )
+}
+
+/** Code + QR + share, and a live row of who has joined while the host sets things up. */
+function InviteCard({ code, crewId }: { code: string; crewId: string }) {
+  const [people, setPeople] = useState<PresentPerson[]>([])
+  const url = `${window.location.origin}/c/${code}`
+  const me = getClientId()
+
+  useEffect(() => joinCrewPresence(crewId, { clientId: me, name: getDisplayName(), host: true }, setPeople), [crewId, me])
+
+  const joined = people.filter((p) => p.clientId !== me)
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: EASE }}
+      className="glass relative mb-6 overflow-hidden rounded-3xl p-4"
+    >
+      <div className="absolute -top-16 -right-16 size-44 rounded-full bg-ember/20 blur-3xl" />
+      <div className="relative flex items-center gap-4">
+        <QRCode value={url} className="w-24 shrink-0" />
+        <div className="min-w-0">
+          <p className="text-xs font-semibold tracking-[0.18em] text-muted uppercase">Friends join with</p>
+          <p className="font-mono text-4xl leading-tight font-semibold tracking-[0.14em]">{code}</p>
+          <div className="mt-1.5">
+            <ShareButton url={url} title="LunchRun" />
+          </div>
+        </div>
+      </div>
+
+      <div className="relative mt-4 flex items-center gap-3 border-t border-cream/10 pt-3">
+        {joined.length === 0 ? (
+          <p className="flex items-center gap-2 text-sm text-muted">
+            <span className="relative flex size-2">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-ember opacity-75" />
+              <span className="relative inline-flex size-2 rounded-full bg-ember" />
+            </span>
+            Waiting for friends to scan…
+          </p>
+        ) : (
+          <>
+            <div className="flex -space-x-2">
+              <AnimatePresence>
+                {joined.slice(0, 6).map((p) => (
+                  <motion.span key={p.clientId} initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={{ type: 'spring', stiffness: 420, damping: 20 }}>
+                    <Avatar name={p.name} size="size-8" />
+                  </motion.span>
+                ))}
+              </AnimatePresence>
+            </div>
+            <p className="min-w-0 truncate text-sm">
+              <span className="font-semibold">{joined.length} joined</span>
+              <span className="text-muted"> · {joined.map((p) => p.name).join(', ')}</span>
+            </p>
+          </>
+        )}
+      </div>
+    </motion.section>
   )
 }

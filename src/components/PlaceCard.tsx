@@ -1,7 +1,7 @@
 import { motion } from 'motion/react'
 import { Ban, Car, Coffee, Footprints, Sandwich, Store, UtensilsCrossed } from 'lucide-react'
 import type { PlaceType } from '../lib/feasibility'
-import type { PlaceRow, PriceTag } from '../lib/types'
+import type { PlaceRow } from '../lib/types'
 import { StatusBadge } from './ui'
 
 export const TYPE_ICON: Record<PlaceType, typeof Coffee> = {
@@ -17,8 +17,6 @@ export const TYPE_LABEL: Record<PlaceType, string> = {
   food_court: 'Food court',
 }
 
-const PRICE_CYCLE: (PriceTag | null)[] = [null, '$', '$$', '$$$']
-
 interface PlaceCardProps {
   place: PlaceRow
   mode: 'walking' | 'driving'
@@ -28,18 +26,16 @@ interface PlaceCardProps {
   highlighted?: boolean
   onPick?: () => void
   onVeto?: () => void
-  onPrice?: (tag: PriceTag | null) => void
   index?: number
 }
 
 /**
  * One place on the ballot. Tap the card to rank it (1st → 2nd → 3rd),
- * tap "No way" to veto, tap the price chip to cycle $ / $$ / $$$.
+ * tap "No way" to veto.
  */
-export function PlaceCard({ place, mode, estimated, rank, vetoed, highlighted, onPick, onVeto, onPrice, index = 0 }: PlaceCardProps) {
+export function PlaceCard({ place, mode, estimated, rank, vetoed, highlighted, onPick, onVeto, index = 0 }: PlaceCardProps) {
   const Icon = TYPE_ICON[place.type]
   const picked = rank != null
-  const nextPrice = PRICE_CYCLE[(PRICE_CYCLE.indexOf(place.price_tag) + 1) % PRICE_CYCLE.length]
 
   return (
     <motion.li
@@ -98,25 +94,6 @@ export function PlaceCard({ place, mode, estimated, rank, vetoed, highlighted, o
                 {d}
               </span>
             ))}
-            {onPrice ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onPrice(nextPrice)
-                }}
-                title="Tap to tag the price"
-                className={`rounded-full px-2 py-1 font-mono text-xs font-semibold ring-1 transition ${
-                  place.price_tag ? 'bg-easy/10 text-easy ring-easy/25' : 'text-dim ring-cream/10 hover:text-muted'
-                }`}
-              >
-                {place.price_tag ?? '$?'}
-              </button>
-            ) : (
-              place.price_tag && (
-                <span className="rounded-full bg-easy/10 px-2 py-1 font-mono text-xs font-semibold text-easy ring-1 ring-easy/25">{place.price_tag}</span>
-              )
-            )}
           </div>
         </div>
 
