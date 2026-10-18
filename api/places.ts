@@ -7,10 +7,10 @@
  *  - a 24h CDN cache, so a school's area loads instantly after the first time
  *    and keeps working even when Overpass is having a bad day.
  *
- * Sources, all OpenStreetMap data, run in parallel; first complete answer wins:
- *  - Geoapify Places (if GEOAPIFY_API_KEY is set) — one fast request, most reliable
- *  - public Overpass servers
- *  - a Nominatim crawl (results reshaped to look like Overpass elements)
+ * Sources (all OpenStreetMap data) run in parallel:
+ *  - public Overpass servers — complete; used alone whenever one answers
+ *  - otherwise Geoapify Places (if GEOAPIFY_API_KEY is set) merged with a Nominatim
+ *    crawl, since each one misses places the other has
  *
  * Returns Overpass-style JSON ({ elements: [...], source }); the browser parses it
  * with parseOverpass() in src/lib/overpass.ts.
@@ -24,6 +24,29 @@ const SERVERS = [
 const USER_AGENT = 'LunchRun/1.0 (student project; https://github.com/Kerem-Orhan/LunchRun)'
 const TYPES = 'restaurant|fast_food|cafe|food_court' // keep in sync with PLACE_TYPES in src/lib/overpass.ts
 const MAX_RADIUS = 10_000
+
+interface Element {
+  type: string
+  id: number
+  lat: number
+  lon: number
+  tags: Record<string, string>
+}
+
+/** Union of several sources: same OSM id, or same name within ~100 m, counts as one place. */
+function mergeElements(lists: unknown[]): Element[] {
+  const out: Element[] = []
+  const seen = new Set<string>()
+  for (const el of lists as Element[]) {
+    const idKey = `${el.type}/${el.id}`
+    const nameKey = `${(el.tags?.name ?? '').toLowerCase()}@${el.lat.toFixed(3)},${el.lon.toFixed(3)}`
+    if (seen.has(idKey) || seen.has(nameKey)) continue
+    seen.add(idKey)
+    seen.add(nameKey)
+    out.push(el)
+  }
+  return out
+}
 
 const CACHE_DAY = 'public, s-maxage=86400, stale-while-revalidate=604800'
 
@@ -207,9 +230,7 @@ out center tags;`
 
   async function geoapify(key: string) {
     try {
-      const elements = await fromGeoapify(key, lat, lng, radius)
-      stopNominatim.abort()
-      return { elements, source: 'geoapify' }
+      return { elements: await fromGeoapify(key, lat, lng, radius), source: 'geoapify' }
     } catch (err) {
       errors.push(`geoapify: ${(err as Error).message}`)
       throw err
@@ -225,17 +246,26 @@ out center tags;`
     }
   }
 
-  // Ask every source at once. Geoapify / Overpass (complete data, fast) normally win;
-  // the Nominatim crawl is the safety net when they're unavailable.
-  try {
-    const key = process.env.GEOAPIFY_API_KEY?.trim()
-    if (!key) errors.push('geoapify: GEOAPIFY_API_KEY not set')
-    const result = await Promise.any([...(key ? [geoapify(key)] : []), ...SERVERS.map(fromOverpass), nominatim()])
+  // Run every source at once.
+  //  - Overpass is the complete raw data: if any server answers, use it (and stop the crawl).
+  //  - Otherwise merge Geoapify (fast, but misses some places) with the Nominatim crawl
+  //    (slower, finds places Geoapify lacks, e.g. inside malls).
+  const key = process.env.GEOAPIFY_API_KEY?.trim()
+  if (!key) errors.push('geoapify: GEOAPIFY_API_KEY not set')
+  const [overpass, geo, nom] = await Promise.all([
+    Promise.any(SERVERS.map(fromOverpass)).catch(() => null),
+    key ? geoapify(key).catch(() => null) : Promise.resolve(null),
+    nominatim().catch(() => null),
+  ])
+
+  // `skipped` lists sources that failed (useful for debugging; never contains secrets).
+  if (overpass) return json({ ...overpass, skipped: errors }, 200, CACHE_DAY)
+
+  const merged = mergeElements([...(nom?.elements ?? []), ...(geo?.elements ?? [])])
+  if (merged.length > 0) {
+    const source = [nom && 'nominatim', geo && 'geoapify'].filter(Boolean).join('+')
     // Restaurants don't move: cache at Vercel's edge for a day, serve stale for a week while refreshing.
-    // `skipped` lists sources that failed before the winner answered (useful for debugging; no secrets).
-    return json({ ...result, skipped: [...errors] }, 200, CACHE_DAY)
-  } catch {
-    /* every source failed — fall through */
+    return json({ elements: merged, source, skipped: errors }, 200, CACHE_DAY)
   }
   return json({ error: 'Restaurant data is unavailable right now', tried: errors }, 502)
 }
