@@ -433,7 +433,7 @@ function LocationPicker({ value, onChange }: { value: StartPoint | null; onChang
                 </button>
               </li>
             ))}
-            <li className="px-4 py-1.5 text-[10px] text-dim">Search by OpenStreetMap Nominatim</li>
+            <li className="px-4 py-1.5 text-[10px] text-dim">Search by OpenStreetMap (Photon / Nominatim)</li>
           </motion.ul>
         )}
       </AnimatePresence>
