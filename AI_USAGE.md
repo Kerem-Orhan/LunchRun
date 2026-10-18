@@ -27,4 +27,6 @@ The Congressional App Challenge asks entrants to disclose AI use. This file reco
 
 | 2026-10-18 | Simplified flow (no crew setup, host screen with code/QR + live presence); fixed missing places (Willowbrook Mall) by merging Geoapify with an adaptive Nominatim crawl | 43 places found around the mall vs 0 before |
 
+| 2026-10-18 | Ballot of up to 60 with sort/type/cuisine/search filters (`ballot.ts` + tests); deploy-safe lazy loading + error boundary; Photon address search | |
+
 <!-- Add a row each day. -->
