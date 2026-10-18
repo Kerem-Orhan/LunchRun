@@ -47,9 +47,13 @@ npm run dev
 1. Get a free key at openrouteservice.org.
 2. Add it to Vercel as `ORS_API_KEY` (server-only — never prefix it with `VITE_`).
 
+**Geoapify (recommended — reliable restaurant data)**
+1. Free account at geoapify.com → create a project → copy the API key.
+2. Add it to Vercel as `GEOAPIFY_API_KEY` (Secret). Without it, the app falls back to public Overpass / Nominatim servers, which are often busy.
+
 **Vercel**
 1. Import this GitHub repo at vercel.com/new (framework: Vite — auto-detected).
-2. Add env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `ORS_API_KEY`.
+2. Add env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `ORS_API_KEY`, `GEOAPIFY_API_KEY`.
 3. Every push to `main` redeploys.
 
 ## Project layout

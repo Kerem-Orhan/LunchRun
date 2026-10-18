@@ -33,7 +33,7 @@ export const DEFAULT_BUFFER_MINUTES = 5
  */
 export const PREFILTER_RADIUS_METERS: Record<TravelMode, number> = {
   walking: 1200,
-  driving: 8000,
+  driving: 6500,
 }
 
 /** The room's rules — set once by the creator so everyone filters the same way. */

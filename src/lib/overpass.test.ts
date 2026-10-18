@@ -66,3 +66,12 @@ describe('estimateMinutes (routing fallback)', () => {
     expect(estimateMinutes('driving', school, oneKmNorth)).toBeCloseTo(2.6, 0)
   })
 })
+
+describe('pickBallot', () => {
+  it('keeps only the quickest location of each chain', async () => {
+    const { pickBallot } = await import('./places')
+    const mk = (name: string, total: number) => ({ name, feasibility: { breakdown: { total } } }) as never
+    const ballot = pickBallot([mk('Dunkin’', 20), mk('Chipotle', 22), mk('Dunkin', 24), mk('DUNKIN’', 25), mk('Panera', 30)], 3)
+    expect(ballot.map((p: { name: string }) => p.name)).toEqual(['Dunkin’', 'Chipotle', 'Panera'])
+  })
+})

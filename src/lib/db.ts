@@ -11,7 +11,7 @@ import { supabase } from './supabase'
 import type { CrewRow, MemberRow, PlaceRow, PriceTag, RoundRow, VisitRow, VoteRow } from './types'
 
 /** How many places go on the ballot. More than this makes voting slow on a phone. */
-export const BALLOT_SIZE = 12
+export const BALLOT_SIZE = 15
 
 export class DbError extends Error {}
 
@@ -75,7 +75,7 @@ export interface NewRound {
   places: ReachablePlace[]
 }
 
-/** Creates the round and its ballot (the best BALLOT_SIZE reachable places). */
+/** Creates the round and its ballot (pass the places already picked with pickBallot). */
 export async function createRound(r: NewRound): Promise<RoundRow> {
   const round = check(
     await db()
@@ -97,7 +97,7 @@ export async function createRound(r: NewRound): Promise<RoundRow> {
     'start the lunch',
   ) as RoundRow
 
-  const rows = r.places.slice(0, BALLOT_SIZE).map((p) => ({
+  const rows = r.places.map((p) => ({
     round_id: round.id,
     osm_id: p.osmId,
     name: p.name,

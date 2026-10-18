@@ -8,7 +8,8 @@
 import { distanceMeters, PREFILTER_RADIUS_METERS, type LatLng, type PlaceType, type TravelMode } from './feasibility'
 
 export const PLACE_TYPES: PlaceType[] = ['restaurant', 'fast_food', 'cafe', 'food_court']
-export const MAX_CANDIDATES = 50 // matches the /api/matrix limit
+// Nearest N places get real travel times (sent to /api/matrix in batches of 50).
+export const MAX_CANDIDATES = 300
 
 export type DietTag = 'halal' | 'vegetarian' | 'vegan'
 
@@ -118,7 +119,7 @@ export async function fetchNearbyPlaces(start: LatLng, mode: TravelMode, signal?
   try {
     // Rounding to ~10 m means everyone at the same school hits the same cache entry.
     const params = new URLSearchParams({ lat: start.lat.toFixed(4), lng: start.lng.toFixed(4), radius: String(radius) })
-    const res = await fetch(`/api/places?${params}`, { signal: withTimeout(40_000, signal) })
+    const res = await fetch(`/api/places?${params}`, { signal: withTimeout(60_000, signal) })
     if (!res.ok) throw new Error(`places proxy ${res.status}`)
     return parseOverpass(await res.json(), start)
   } catch (err) {

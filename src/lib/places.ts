@@ -24,6 +24,23 @@ export function rankReachable(places: OsmPlace[], minutes: (number | null)[], ru
     })
 }
 
+/**
+ * The ballot: best-first, but only one location per chain (the quickest one),
+ * so five Dunkin's don't crowd out everything else.
+ */
+export function pickBallot(reachable: ReachablePlace[], size: number): ReachablePlace[] {
+  const seen = new Set<string>()
+  const ballot: ReachablePlace[] = []
+  for (const p of reachable) {
+    const key = p.name.toLowerCase().replace(/[^a-z0-9]/g, '')
+    if (seen.has(key)) continue
+    seen.add(key)
+    ballot.push(p)
+    if (ballot.length === size) break
+  }
+  return ballot
+}
+
 export interface ReachableResult {
   places: ReachablePlace[]
   /** How many food places were nearby before the time filter (for "12 of 40 fit" copy). */

@@ -11,7 +11,7 @@ import { DEFAULT_BUFFER_MINUTES, DEFAULT_EAT_MINUTES, PREFILTER_RADIUS_METERS, t
 import { getCurrentPosition, searchAddress, type GeoResult } from '../lib/geocode'
 import { getClientId, getDisplayName } from '../lib/identity'
 import { fetchNearbyPlaces, type OsmPlace } from '../lib/overpass'
-import { rankReachable } from '../lib/places'
+import { pickBallot, rankReachable } from '../lib/places'
 import { fetchTravelMinutes } from '../lib/routing'
 import type { CrewRow } from '../lib/types'
 
@@ -118,7 +118,7 @@ function CreateRoundInner() {
   )
   const ready = !!nearby && nearby.key === searchKey && !searching
   const easyCount = reachable.filter((p) => p.feasibility.status === 'easy').length
-  const ballot = reachable.slice(0, BALLOT_SIZE)
+  const ballot = pickBallot(reachable, BALLOT_SIZE)
 
   async function startVoting() {
     if (!crew || !start || ballot.length === 0) return
@@ -479,7 +479,7 @@ function Preview({
     )
   }
 
-  const pins = reachable.slice(0, BALLOT_SIZE).map((p) => ({ id: p.osmId, lat: p.lat, lng: p.lng, label: p.name, status: p.feasibility.status }))
+  const pins = pickBallot(reachable, BALLOT_SIZE).map((p) => ({ id: p.osmId, lat: p.lat, lng: p.lng, label: p.name, status: p.feasibility.status }))
 
   return (
     <div>
@@ -488,8 +488,11 @@ function Preview({
         <AnimatePresence>
           {searching && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[500] grid place-items-center rounded-2xl bg-ink/50 backdrop-blur-[2px]">
-              <div className="flex items-center gap-3 rounded-full bg-ink-2/90 px-4 py-2.5 text-sm font-semibold ring-1 ring-cream/10">
-                <Spinner className="size-5" /> Checking travel times…
+              <div className="text-center">
+                <div className="flex items-center gap-3 rounded-full bg-ink-2/90 px-4 py-2.5 text-sm font-semibold ring-1 ring-cream/10">
+                  <Spinner className="size-5" /> Finding food & travel times…
+                </div>
+                <p className="mt-2 text-xs text-muted">First search in a new area can take ~30s. After that it’s instant.</p>
               </div>
             </motion.div>
           )}
@@ -517,7 +520,7 @@ function Preview({
               <p className="font-display font-bold">Nothing fits this lunch</p>
               <p className="mt-1 text-sm text-muted">
                 {nearbyCount === 0
-                  ? `No food places found within ${mode === 'walking' ? '1.2 km' : '8 km'}. Try driving or a different start.`
+                  ? `No food places found within ${mode === 'walking' ? '1.2 km' : '6.5 km'}. Try driving or a different start.`
                   : `${nearbyCount} places nearby, but none can be done in time. Try a longer lunch, less eating time, or driving.`}
               </p>
             </div>
@@ -526,7 +529,7 @@ function Preview({
         {ready && reachable.length > 0 && (
           <p className="mt-2 px-1 text-xs text-dim">
             {nearbyCount - reachable.length > 0 && `${nearbyCount - reachable.length} nearby places hidden — they won’t fit. `}
-            {reachable.length > BALLOT_SIZE && `Top ${BALLOT_SIZE} go on the ballot. `}
+            {reachable.length > BALLOT_SIZE && `The best ${BALLOT_SIZE} (one per chain) go on the ballot. `}
             {estimated && 'Travel times are estimates right now (≈).'}
           </p>
         )}
