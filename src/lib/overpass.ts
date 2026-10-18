@@ -117,8 +117,10 @@ export async function fetchNearbyPlaces(start: LatLng, mode: TravelMode, signal?
   let lastError: unknown
 
   try {
-    // Rounding to ~10 m means everyone at the same school hits the same cache entry.
-    const params = new URLSearchParams({ lat: start.lat.toFixed(4), lng: start.lng.toFixed(4), radius: String(radius) })
+    // Round to ~100 m so GPS jitter ("Use my location" is never exactly the same) still
+    // hits the same 24h cache entry; widen the radius a bit to cover the rounding.
+    // Distances are still measured from the real start point when parsing.
+    const params = new URLSearchParams({ lat: start.lat.toFixed(3), lng: start.lng.toFixed(3), radius: String(radius + 150) })
     const res = await fetch(`/api/places?${params}`, { signal: withTimeout(60_000, signal) })
     if (!res.ok) throw new Error(`places proxy ${res.status}`)
     return parseOverpass(await res.json(), start)
