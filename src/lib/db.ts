@@ -10,8 +10,8 @@ import type { ReachablePlace } from './places'
 import { supabase } from './supabase'
 import type { CrewRow, MemberRow, PlaceRow, PriceTag, RoundRow, VisitRow, VoteRow } from './types'
 
-/** How many places go on the ballot. More than this makes voting slow on a phone. */
-export const BALLOT_SIZE = 15
+/** Max places on the ballot. The vote screen has sort/filter/search, so this can be generous. */
+export const BALLOT_SIZE = 60
 
 export class DbError extends Error {}
 

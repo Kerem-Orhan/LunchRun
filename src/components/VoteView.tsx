@@ -1,17 +1,24 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { Check, Crown, Map as MapIcon, Pencil, Send, Users } from 'lucide-react'
+import { ArrowDownUp, Check, Crown, Map as MapIcon, Pencil, Search, Send, Users, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { useRound } from '../hooks/useRound'
+import { applyView, DEFAULT_VIEW, topCuisines, typesPresent, type BallotView, type SortBy } from '../lib/ballot'
 import { decideRound, submitVote } from '../lib/db'
 import { formatTime, lunchEndsAt } from '../lib/round'
 import type { PlaceRow } from '../lib/types'
 import { everyoneHasVoted } from '../lib/voting'
 import { Button } from './Button'
 import { MapView } from './MapView'
-import { PlaceCard } from './PlaceCard'
+import { PlaceCard, TYPE_LABEL } from './PlaceCard'
 import { Avatar, EASE, Screen, ShareButton, Spinner } from './ui'
 
 type RoundData = ReturnType<typeof useRound>
+
+const SORTS: [SortBy, string][] = [
+  ['time', 'Quickest'],
+  ['distance', 'Closest'],
+  ['name', 'A–Z'],
+]
 
 export function VoteView({ data }: { data: RoundData }) {
   const { round, crew, places, members, votes, me, myVote, isCreator, result } = data
@@ -23,6 +30,7 @@ export function VoteView({ data }: { data: RoundData }) {
   const [error, setError] = useState<string | null>(null)
   const [showMap, setShowMap] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
+  const [view, setView] = useState<BallotView>(DEFAULT_VIEW)
   const loadedVote = useRef(false)
 
   // Load my saved ballot once (e.g. after a refresh), then show the "submitted" state.
@@ -52,7 +60,10 @@ export function VoteView({ data }: { data: RoundData }) {
   if (!round) return null
 
   const placeById = new Map(places.map((p) => [p.id, p]))
-  const visible = places
+  const visible = applyView(places, view)
+  const cuisines = topCuisines(places)
+  const types = typesPresent(places)
+  const filtering = view.type !== 'all' || !!view.cuisine || !!view.query.trim()
 
   function togglePick(id: string) {
     if (!editing) setEditing(true)
@@ -148,15 +159,79 @@ export function VoteView({ data }: { data: RoundData }) {
         </div>
       </motion.div>
 
-      {/* ---------- Tools: map + price filter ---------- */}
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={() => setShowMap((v) => !v)}
-          className={`inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold ring-1 transition ${showMap ? 'bg-cream text-ink ring-cream' : 'text-muted ring-cream/10 hover:text-cream'}`}
-        >
-          <MapIcon className="size-4" /> Map
-        </button>
+      {/* ---------- Tools: search, sort, map, type + cuisine filters ---------- */}
+      <div className="mb-3 grid gap-2.5">
+        <div className="flex gap-2">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-dim" />
+            <input
+              value={view.query}
+              onChange={(e) => setView((v) => ({ ...v, query: e.target.value }))}
+              placeholder={`Search ${places.length} places`}
+              className="h-10 w-full rounded-full bg-ink/60 pr-9 pl-9 text-[15px] text-cream ring-1 ring-cream/10 placeholder:text-dim focus:ring-ember/60 focus:outline-none"
+            />
+            {view.query && (
+              <button
+                type="button"
+                onClick={() => setView((v) => ({ ...v, query: '' }))}
+                aria-label="Clear search"
+                className="absolute top-1/2 right-2.5 -translate-y-1/2 text-dim hover:text-cream"
+              >
+                <X className="size-4" />
+              </button>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowMap((v) => !v)}
+            className={`inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold ring-1 transition ${showMap ? 'bg-cream text-ink ring-cream' : 'text-muted ring-cream/10 hover:text-cream'}`}
+          >
+            <MapIcon className="size-4" /> Map
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <ArrowDownUp className="size-4 shrink-0 text-dim" />
+          <div className="flex gap-1 rounded-full bg-ink/60 p-1 ring-1 ring-cream/10">
+            {SORTS.map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setView((v) => ({ ...v, sort: k }))}
+                className={`h-7 rounded-full px-3 text-xs font-semibold transition ${view.sort === k ? 'bg-cream text-ink' : 'text-muted hover:text-cream'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Horizontally scrolling chips: place types, then cuisines */}
+        <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <Chip active={view.type === 'all' && !view.cuisine} onClick={() => setView((v) => ({ ...v, type: 'all', cuisine: null }))}>
+            All
+          </Chip>
+          {types.map((t) => (
+            <Chip key={t} active={view.type === t} onClick={() => setView((v) => ({ ...v, type: v.type === t ? 'all' : t }))}>
+              {TYPE_LABEL[t]}
+            </Chip>
+          ))}
+          {cuisines.length > 0 && <span className="mx-1 w-px shrink-0 self-stretch bg-cream/10" />}
+          {cuisines.map((c) => (
+            <Chip key={c} active={view.cuisine === c} accent onClick={() => setView((v) => ({ ...v, cuisine: v.cuisine === c ? null : c }))}>
+              {c}
+            </Chip>
+          ))}
+        </div>
+
+        {filtering && (
+          <p className="flex items-center justify-between px-1 text-xs text-muted">
+            Showing {visible.length} of {places.length}
+            <button type="button" onClick={() => setView((v) => ({ ...DEFAULT_VIEW, sort: v.sort }))} className="font-semibold text-ember hover:text-ember-soft">
+              Clear filters
+            </button>
+          </p>
+        )}
       </div>
 
       <AnimatePresence initial={false}>
@@ -193,6 +268,9 @@ export function VoteView({ data }: { data: RoundData }) {
           />
         ))}
       </ul>
+      {visible.length === 0 && (
+        <p className="rounded-2xl border border-dashed border-cream/15 px-4 py-8 text-center text-sm text-dim">Nothing matches. Try another filter.</p>
+      )}
       <p className="mt-4 px-1 text-xs text-dim">Diet tags come from OpenStreetMap and may be incomplete. Always double-check.</p>
 
       {/* ---------- Sticky bar ---------- */}
@@ -254,5 +332,20 @@ function PickSlots({ picks, veto }: { picks: (PlaceRow | undefined)[]; veto?: Pl
       })}
       {veto && <p className="col-span-3 truncate px-1 pt-0.5 text-[11px] font-semibold text-veto">No way: {veto.name}</p>}
     </div>
+  )
+}
+
+function Chip({ active, accent, onClick, children }: { active: boolean; accent?: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`h-8 shrink-0 rounded-full px-3 text-xs font-semibold whitespace-nowrap ring-1 transition ${
+        active ? (accent ? 'bg-ember text-ink ring-ember' : 'bg-cream text-ink ring-cream') : 'bg-ink/40 text-muted ring-cream/10 hover:text-cream'
+      }`}
+    >
+      {children}
+    </button>
   )
 }

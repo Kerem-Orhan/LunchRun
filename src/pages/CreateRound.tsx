@@ -479,7 +479,8 @@ function Preview({
     )
   }
 
-  const pins = pickBallot(reachable, BALLOT_SIZE).map((p) => ({ id: p.osmId, lat: p.lat, lng: p.lng, label: p.name, status: p.feasibility.status }))
+  const ballot = pickBallot(reachable, BALLOT_SIZE)
+  const pins = ballot.map((p) => ({ id: p.osmId, lat: p.lat, lng: p.lng, label: p.name, status: p.feasibility.status }))
 
   return (
     <div>
@@ -529,7 +530,7 @@ function Preview({
         {ready && reachable.length > 0 && (
           <p className="mt-2 px-1 text-xs text-dim">
             {nearbyCount - reachable.length > 0 && `${nearbyCount - reachable.length} nearby places hidden — they won’t fit. `}
-            {reachable.length > BALLOT_SIZE && `The best ${BALLOT_SIZE} (one per chain) go on the ballot. `}
+            {ballot.length < reachable.length && `${ballot.length} go on the ballot (one location per chain${reachable.length > BALLOT_SIZE ? `, best ${BALLOT_SIZE}` : ''}). `}
             {estimated && 'Travel times are estimates right now (≈).'}
           </p>
         )}
