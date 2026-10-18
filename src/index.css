@@ -160,3 +160,74 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------- Map ---------- */
+
+.leaflet-container {
+  font-family: var(--font-sans);
+  background: var(--color-ink);
+}
+.leaflet-control-attribution {
+  background: rgb(14 12 11 / 0.7) !important;
+  color: var(--color-dim) !important;
+  font-size: 10px;
+}
+.leaflet-control-attribution a {
+  color: var(--color-muted) !important;
+}
+
+.lr-pin {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  border: 3px solid var(--color-ink);
+  box-shadow: 0 0 0 1.5px rgb(246 239 231 / 0.25), 0 4px 14px rgb(0 0 0 / 0.5);
+  transition: transform 0.3s var(--ease-out-expo);
+}
+.lr-pin-easy { background: var(--color-easy); }
+.lr-pin-tight { background: var(--color-tight); }
+.lr-pin:hover, .lr-pin-selected {
+  transform: scale(1.45);
+  box-shadow: 0 0 0 2px var(--color-cream), 0 0 22px 4px currentColor;
+}
+.lr-pin-easy.lr-pin-selected { color: rgb(198 243 107 / 0.6); }
+.lr-pin-tight.lr-pin-selected { color: rgb(255 201 77 / 0.6); }
+
+/* Start point: solid ember dot with a pulsing ring. */
+.lr-start {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+}
+.lr-start span {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: var(--color-ember);
+  border: 3px solid var(--color-cream);
+}
+.lr-start::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: var(--color-ember);
+  animation: lr-pulse 2s var(--ease-out-expo) infinite;
+}
+@keyframes lr-pulse {
+  from { transform: scale(0.5); opacity: 0.7; }
+  to { transform: scale(2.2); opacity: 0; }
+}
+
+.lr-tooltip {
+  background: var(--color-ink-2) !important;
+  color: var(--color-cream) !important;
+  border: 1px solid rgb(246 239 231 / 0.12) !important;
+  border-radius: 10px !important;
+  font-weight: 600;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.5) !important;
+}
+.lr-tooltip::before { display: none; }

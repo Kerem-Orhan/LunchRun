@@ -7,7 +7,13 @@
  * so it never ships to the browser.
  *
  * Request:  { mode: 'walking' | 'driving', start: {lat, lng}, places: [{lat, lng}, ...] }
- * Response: { minutes: (number | null)[] }  — same order as `places`; null = unreachable
+ * Response: { minutes: (number | null)[], estimated: boolean }
+ *           Same order as `places`; null = unreachable.
+ *
+ * Walking fallback: ORS's walking service is sometimes slow or down while
+ * driving keeps working. If walking doesn't answer in time, we ask the driving
+ * service for real street DISTANCES and convert them at walking pace.
+ * Those results come back with `estimated: true` so the UI can show "≈".
  */
 
 interface LatLng {
@@ -17,6 +23,13 @@ interface LatLng {
 
 const MAX_PLACES = 50 // ORS free tier allows ~3,500 matrix cells per request; we stay well under.
 const PROFILES = { walking: 'foot-walking', driving: 'driving-car' } as const
+export const WALK_METERS_PER_MINUTE = 80 // ≈ 4.8 km/h, a typical walking pace
+
+class OrsError extends Error {
+  constructor(public status: number, public detail: string | null) {
+    super(detail ?? `ORS ${status}`)
+  }
+}
 
 function isLatLng(p: unknown): p is LatLng {
   const v = p as LatLng
@@ -28,6 +41,39 @@ function isLatLng(p: unknown): p is LatLng {
 
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { 'Cache-Control': 'no-store' } })
+
+const round1 = (n: number) => Math.round(n * 10) / 10
+
+/** One row of an ORS matrix: start (index 0) → every place. Throws OrsError or a timeout error. */
+async function orsMatrix(
+  key: string,
+  profile: string,
+  locations: number[][],
+  metric: 'duration' | 'distance',
+  timeoutMs: number,
+): Promise<(number | null)[]> {
+  const res = await fetch(`https://api.openrouteservice.org/v2/matrix/${profile}`, {
+    method: 'POST',
+    headers: { Authorization: key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      locations,
+      sources: [0],
+      destinations: locations.slice(1).map((_, i) => i + 1),
+      metrics: [metric],
+    }),
+    signal: AbortSignal.timeout(timeoutMs),
+  })
+
+  if (!res.ok) {
+    // ORS error bodies look like {"error": "..."} or {"error": {"message": "..."}}. They never contain our key.
+    const body = (await res.json().catch(() => null)) as { error?: string | { message?: string } } | null
+    const detail = typeof body?.error === 'string' ? body.error : (body?.error?.message ?? null)
+    throw new OrsError(res.status, detail)
+  }
+
+  const data = (await res.json()) as { durations?: (number | null)[][]; distances?: (number | null)[][] }
+  return (metric === 'duration' ? data.durations : data.distances)?.[0] ?? []
+}
 
 export async function POST(request: Request): Promise<Response> {
   // trim(): a space or newline pasted along with the key makes ORS reject it.
@@ -51,34 +97,23 @@ export async function POST(request: Request): Promise<Response> {
   // ORS wants [lng, lat] order. Index 0 is the start; 1..n are the places.
   const locations = [start, ...places].map((p) => [p.lng, p.lat])
 
-  let ors: Response
   try {
-    ors = await fetch(`https://api.openrouteservice.org/v2/matrix/${PROFILES[mode]}`, {
-      method: 'POST',
-      headers: { Authorization: key, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        locations,
-        sources: [0],
-        destinations: places.map((_, i) => i + 1),
-        metrics: ['duration'],
-      }),
-      signal: AbortSignal.timeout(10_000), // don't leave phones spinning if ORS is slow
-    })
-  } catch {
+    // 1) Real travel times for the chosen mode. Walking gets a short leash so the fallback stays fast.
+    try {
+      const seconds = await orsMatrix(key, PROFILES[mode], locations, 'duration', mode === 'walking' ? 5_000 : 10_000)
+      return json({ minutes: seconds.map((s) => (s == null ? null : round1(s / 60))), estimated: false })
+    } catch (err) {
+      const recoverable = !(err instanceof OrsError) || err.status >= 500
+      if (mode !== 'walking' || !recoverable) throw err
+    }
+
+    // 2) Walking fallback: street distances from the driving network, at walking pace.
+    const meters = await orsMatrix(key, PROFILES.driving, locations, 'distance', 8_000)
+    return json({ minutes: meters.map((m) => (m == null ? null : round1(m / WALK_METERS_PER_MINUTE))), estimated: true })
+  } catch (err) {
+    if (err instanceof OrsError) {
+      return json({ error: 'Routing service error', orsStatus: err.status, detail: err.detail }, err.status === 429 ? 429 : 502)
+    }
     return json({ error: 'Routing service timed out' }, 504)
   }
-
-  if (!ors.ok) {
-    // ORS error bodies look like {"error": "..."} or {"error": {"message": "..."}}.
-    // Passing the message through makes problems (bad key, quota) easy to spot; it never contains our key.
-    const detail = (await ors.json().catch(() => null)) as { error?: string | { message?: string } } | null
-    const message = typeof detail?.error === 'string' ? detail.error : detail?.error?.message
-    return json({ error: 'Routing service error', orsStatus: ors.status, detail: message ?? null }, ors.status === 429 ? 429 : 502)
-  }
-
-  const data = (await ors.json()) as { durations?: (number | null)[][] }
-  const seconds = data.durations?.[0] ?? []
-  const minutes = seconds.map((s) => (s == null ? null : Math.round((s / 60) * 10) / 10))
-
-  return json({ minutes })
 }
