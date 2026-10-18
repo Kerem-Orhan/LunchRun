@@ -229,9 +229,11 @@ out center tags;`
   // the Nominatim crawl is the safety net when they're unavailable.
   try {
     const key = process.env.GEOAPIFY_API_KEY?.trim()
+    if (!key) errors.push('geoapify: GEOAPIFY_API_KEY not set')
     const result = await Promise.any([...(key ? [geoapify(key)] : []), ...SERVERS.map(fromOverpass), nominatim()])
     // Restaurants don't move: cache at Vercel's edge for a day, serve stale for a week while refreshing.
-    return json(result, 200, CACHE_DAY)
+    // `skipped` lists sources that failed before the winner answered (useful for debugging; no secrets).
+    return json({ ...result, skipped: [...errors] }, 200, CACHE_DAY)
   } catch {
     /* every source failed — fall through */
   }
