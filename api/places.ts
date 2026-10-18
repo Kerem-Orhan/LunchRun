@@ -3,12 +3,12 @@
  *
  * Proxies the OpenStreetMap Overpass API (restaurant data) with:
  *  - a proper User-Agent (public Overpass servers block anonymous clients),
- *  - fallback across several public servers,
+ *  - several public servers raced in parallel,
  *  - a 24h CDN cache, so a school's area loads instantly after the first time
  *    and keeps working even when Overpass is having a bad day.
  *
- * If every Overpass server fails, falls back to Nominatim (OSM's search API,
- * same map data) and reshapes its results to look like Overpass elements.
+ * All Overpass servers and Nominatim (OSM's search API, same map data, results
+ * reshaped to look like Overpass elements) are asked in parallel; first answer wins.
  *
  * Returns Overpass-style JSON ({ elements: [...], source }); the browser parses it
  * with parseOverpass() in src/lib/overpass.ts.
@@ -91,29 +91,41 @@ nwr["amenity"~"^(${TYPES})$"](around:${Math.round(radius)},${lat},${lng});
 out center tags;`
 
   const errors: string[] = []
-  for (const server of SERVERS) {
+
+  async function fromOverpass(server: string) {
     try {
       const res = await fetch(server, {
         method: 'POST',
         headers: { 'User-Agent': USER_AGENT, 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
         body: new URLSearchParams({ data: query }),
-        signal: AbortSignal.timeout(8_000),
+        signal: AbortSignal.timeout(10_000),
       })
       if (!res.ok) throw new Error(`${res.status}`)
       const data = (await res.json()) as { elements?: unknown[] }
       if (!Array.isArray(data.elements)) throw new Error('bad response')
-      // Restaurants don't move: cache at Vercel's edge for a day, serve stale for a week while refreshing.
-      return json({ elements: data.elements, source: 'overpass' }, 200, CACHE_DAY)
+      return { elements: data.elements, source: new URL(server).host }
     } catch (err) {
       errors.push(`${new URL(server).host}: ${(err as Error).message}`)
+      throw err
     }
   }
 
+  async function nominatim() {
+    try {
+      return { elements: await fromNominatim(lat, lng, radius), source: 'nominatim' }
+    } catch (err) {
+      errors.push(`nominatim: ${(err as Error).message}`)
+      throw err
+    }
+  }
+
+  // Ask every source at once and use whichever answers first (public servers are often slow or down).
   try {
-    const elements = await fromNominatim(lat, lng, radius)
-    return json({ elements, source: 'nominatim' }, 200, CACHE_DAY)
-  } catch (err) {
-    errors.push(`nominatim: ${(err as Error).message}`)
+    const result = await Promise.any([...SERVERS.map(fromOverpass), nominatim()])
+    // Restaurants don't move: cache at Vercel's edge for a day, serve stale for a week while refreshing.
+    return json(result, 200, CACHE_DAY)
+  } catch {
+    /* every source failed — fall through */
   }
   return json({ error: 'Restaurant data is unavailable right now', tried: errors }, 502)
 }
