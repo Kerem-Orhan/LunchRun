@@ -33,6 +33,9 @@ create table public.rounds (
   buffer_minutes   int not null default 5 check (buffer_minutes between 0 and 30),
   status           text not null default 'voting' check (status in ('voting', 'decided')),
   winner_place_id  uuid, -- FK added below (places references rounds)
+  lunch_starts_at    timestamptz,          -- for the "Leave by" time
+  creator_client_id  uuid,                 -- device that gets the "Decide" button
+  estimated          boolean not null default false, -- travel times are estimates
   created_at       timestamptz not null default now()
 );
 
@@ -57,6 +60,8 @@ create table public.places (
   total_minutes   numeric(5, 1) not null,
   status          text not null check (status in ('easy', 'tight')), -- 'hidden' places are never stored
   diet_tags       jsonb not null default '[]'::jsonb,
+  cuisine         text,
+  distance_meters int,
   price_tag       text check (price_tag in ('$', '$$', '$$$')),
   unique (round_id, osm_id)
 );

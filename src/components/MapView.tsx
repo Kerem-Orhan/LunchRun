@@ -1,7 +1,7 @@
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useEffect } from 'react'
-import { Circle, MapContainer, Marker, TileLayer, Tooltip, useMap } from 'react-leaflet'
+import { Circle, MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import type { LatLng } from '../lib/feasibility'
 
 export interface MapPin extends LatLng {
@@ -17,6 +17,8 @@ interface MapViewProps {
   onSelect?: (id: string) => void
   /** Light reachability ring around the start, in meters. */
   radius?: number
+  /** Draws a dashed line from the start to this pin (results screen). */
+  routeTo?: string | null
   className?: string
 }
 
@@ -39,19 +41,24 @@ const startIcon = L.divIcon({
 /** Fits the view to the start + all pins whenever they change. */
 function FitBounds({ start, pins }: { start: LatLng; pins: MapPin[] }) {
   const map = useMap()
+  // Only refit when the actual set of points changes (not on every re-render),
+  // so the map doesn't jump while someone is panning it.
+  const key = [start, ...pins].map((p) => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`).join('|')
   useEffect(() => {
     const points = [start, ...pins].map((p) => [p.lat, p.lng] as [number, number])
-    if (points.length === 1) map.setView(points[0], 16)
+    if (points.length === 1) map.setView(points[0], 15)
     else map.fitBounds(points, { padding: [36, 36], maxZoom: 17 })
-  }, [map, start, pins])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, key])
   return null
 }
 
 /**
- * Dark-themed Leaflet map (CARTO "dark matter" tiles, built on OpenStreetMap data).
+ * Dark-themed Leaflet map (OpenStreetMap tiles, darkened with a CSS filter).
  * Pins are colored by Easy (lime) / Tight (amber); the start pulses in ember.
  */
-export function MapView({ start, pins, selectedId, onSelect, radius, className = '' }: MapViewProps) {
+export function MapView({ start, pins, selectedId, onSelect, radius, routeTo, className = '' }: MapViewProps) {
+  const target = routeTo ? pins.find((p) => p.id === routeTo) : null
   return (
     <div className={`overflow-hidden rounded-2xl ring-1 ring-cream/10 ${className}`}>
       <MapContainer
@@ -61,17 +68,27 @@ export function MapView({ start, pins, selectedId, onSelect, radius, className =
         attributionControl
         className="size-full bg-ink"
       >
+        {/* Standard OSM tiles (free, no key), turned dark with a CSS filter — see .lr-tiles in index.css */}
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          subdomains="abcd"
-          maxZoom={20}
+          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          className="lr-tiles"
+          maxZoom={19}
         />
         {radius && (
           <Circle
             center={[start.lat, start.lng]}
             radius={radius}
             pathOptions={{ color: '#ff6a3d', weight: 1, opacity: 0.35, fillColor: '#ff6a3d', fillOpacity: 0.04, dashArray: '4 6' }}
+          />
+        )}
+        {target && (
+          <Polyline
+            positions={[
+              [start.lat, start.lng],
+              [target.lat, target.lng],
+            ]}
+            pathOptions={{ color: '#ff6a3d', weight: 4, opacity: 0.9, dashArray: '2 10', lineCap: 'round' }}
           />
         )}
         <Marker position={[start.lat, start.lng]} icon={startIcon} zIndexOffset={1000} />

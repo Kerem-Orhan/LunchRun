@@ -1,9 +1,16 @@
 import { AnimatePresence, motion } from 'motion/react'
+import { lazy, Suspense } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { Background } from './components/Background'
 import { Logo } from './components/Logo'
-import ComingSoon from './pages/ComingSoon'
+import { FullPageLoader } from './components/ui'
+import CrewHub from './pages/CrewHub'
 import Home from './pages/Home'
+import NotFound from './pages/NotFound'
+
+// Map-heavy screens load on demand, so the first page a phone opens stays small.
+const CreateRound = lazy(() => import('./pages/CreateRound'))
+const Round = lazy(() => import('./pages/Round'))
 
 export default function App() {
   const location = useLocation()
@@ -28,15 +35,15 @@ export default function App() {
           exit={{ opacity: 0, y: -12, filter: 'blur(6px)' }}
           transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
         >
+          <Suspense fallback={<FullPageLoader label="Loading…" />}>
           <Routes location={location}>
             <Route path="/" element={<Home />} />
-            <Route path="/crew/:code" element={<ComingSoon title="Lobby" day={4} />} />
-            <Route path="/crew/:code/new" element={<ComingSoon title="New lunch" day={3} />} />
-            <Route path="/crew/:code/vote" element={<ComingSoon title="Vote" day={5} />} />
-            <Route path="/crew/:code/results" element={<ComingSoon title="Results" day={5} />} />
-            <Route path="/crew/:code/history" element={<ComingSoon title="History" day={6} />} />
-            <Route path="*" element={<ComingSoon title="Lost? This page doesn't exist." day={0} />} />
+            <Route path="/c/:code" element={<CrewHub />} />
+            <Route path="/c/:code/new" element={<CreateRound />} />
+            <Route path="/r/:roundId" element={<Round />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
         </motion.main>
       </AnimatePresence>
     </>

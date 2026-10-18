@@ -12,6 +12,7 @@ interface LunchClockProps {
   segments: ClockSegment[]
   /** Optional caption under the big number, e.g. "Easy · 4 min spare". */
   caption?: string
+  captionTone?: 'easy' | 'tight'
 }
 
 const SIZE = 240
@@ -25,7 +26,7 @@ const GAP = 6 // px gap between segments on the ring
  * is an arc sized by its minutes. Arcs draw in one after another, and the
  * total counts up in the middle. Leftover time stays as the dark track.
  */
-export function LunchClock({ lunchMinutes, segments, caption }: LunchClockProps) {
+export function LunchClock({ lunchMinutes, segments, caption, captionTone = 'easy' }: LunchClockProps) {
   const used = segments.reduce((sum, s) => sum + s.minutes, 0)
 
   // Count-up number in the center.
@@ -115,7 +116,9 @@ export function LunchClock({ lunchMinutes, segments, caption }: LunchClockProps)
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 1.8 }}
-            className="mt-3 rounded-full bg-easy/12 px-3 py-1 text-xs font-semibold text-easy ring-1 ring-easy/25"
+            className={`mt-3 rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
+              captionTone === 'easy' ? 'bg-easy/12 text-easy ring-easy/25' : 'bg-tight/12 text-tight ring-tight/25'
+            }`}
           >
             {caption}
           </motion.span>

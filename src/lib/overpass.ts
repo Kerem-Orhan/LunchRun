@@ -100,16 +100,37 @@ export function parseOverpass(json: { elements?: OverpassElement[] }, start: Lat
   return places.sort((a, b) => a.distanceMeters - b.distanceMeters).slice(0, limit)
 }
 
-/** Fetches nearby food for a travel mode, trying each Overpass server in turn. */
+/** Combines the caller's cancel signal with a timeout. */
+const withTimeout = (ms: number, signal?: AbortSignal) => {
+  const timeout = AbortSignal.timeout(ms)
+  return signal ? AbortSignal.any([signal, timeout]) : timeout
+}
+
+/**
+ * Fetches nearby food for a travel mode.
+ * 1) Our /api/places proxy (server-side, cached for 24h at the edge).
+ * 2) If that fails, each public Overpass server directly from the browser.
+ */
 export async function fetchNearbyPlaces(start: LatLng, mode: TravelMode, signal?: AbortSignal): Promise<OsmPlace[]> {
-  const body = new URLSearchParams({ data: buildQuery(start, PREFILTER_RADIUS_METERS[mode]) })
+  const radius = PREFILTER_RADIUS_METERS[mode]
   let lastError: unknown
 
+  try {
+    // Rounding to ~10 m means everyone at the same school hits the same cache entry.
+    const params = new URLSearchParams({ lat: start.lat.toFixed(4), lng: start.lng.toFixed(4), radius: String(radius) })
+    const res = await fetch(`/api/places?${params}`, { signal: withTimeout(40_000, signal) })
+    if (!res.ok) throw new Error(`places proxy ${res.status}`)
+    return parseOverpass(await res.json(), start)
+  } catch (err) {
+    if (signal?.aborted) throw err
+    lastError = err
+  }
+
+  const body = new URLSearchParams({ data: buildQuery(start, radius) })
   for (const url of ENDPOINTS) {
     try {
       // Give up on a slow server after 10s, but still respect the caller cancelling.
-      const timeout = AbortSignal.timeout(ENDPOINT_TIMEOUT_MS)
-      const res = await fetch(url, { method: 'POST', body, signal: signal ? AbortSignal.any([signal, timeout]) : timeout })
+      const res = await fetch(url, { method: 'POST', body, signal: withTimeout(ENDPOINT_TIMEOUT_MS, signal) })
       if (!res.ok) throw new Error(`Overpass ${res.status}`)
       return parseOverpass(await res.json(), start)
     } catch (err) {
