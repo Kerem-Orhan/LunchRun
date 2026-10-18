@@ -30,7 +30,8 @@ const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { 'Cache-Control': 'no-store' } })
 
 export async function POST(request: Request): Promise<Response> {
-  const key = process.env.ORS_API_KEY
+  // trim(): a space or newline pasted along with the key makes ORS reject it.
+  const key = process.env.ORS_API_KEY?.trim()
   if (!key) return json({ error: 'Server is missing ORS_API_KEY' }, 500)
 
   let body: { mode?: string; start?: unknown; places?: unknown }
@@ -50,20 +51,29 @@ export async function POST(request: Request): Promise<Response> {
   // ORS wants [lng, lat] order. Index 0 is the start; 1..n are the places.
   const locations = [start, ...places].map((p) => [p.lng, p.lat])
 
-  const ors = await fetch(`https://api.openrouteservice.org/v2/matrix/${PROFILES[mode]}`, {
-    method: 'POST',
-    headers: { Authorization: key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      locations,
-      sources: [0],
-      destinations: places.map((_, i) => i + 1),
-      metrics: ['duration'],
-    }),
-  })
+  let ors: Response
+  try {
+    ors = await fetch(`https://api.openrouteservice.org/v2/matrix/${PROFILES[mode]}`, {
+      method: 'POST',
+      headers: { Authorization: key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        locations,
+        sources: [0],
+        destinations: places.map((_, i) => i + 1),
+        metrics: ['duration'],
+      }),
+      signal: AbortSignal.timeout(10_000), // don't leave phones spinning if ORS is slow
+    })
+  } catch {
+    return json({ error: 'Routing service timed out' }, 504)
+  }
 
   if (!ors.ok) {
-    // Pass rate limits through so the client can back off; hide other details.
-    return json({ error: 'Routing service error' }, ors.status === 429 ? 429 : 502)
+    // ORS error bodies look like {"error": "..."} or {"error": {"message": "..."}}.
+    // Passing the message through makes problems (bad key, quota) easy to spot; it never contains our key.
+    const detail = (await ors.json().catch(() => null)) as { error?: string | { message?: string } } | null
+    const message = typeof detail?.error === 'string' ? detail.error : detail?.error?.message
+    return json({ error: 'Routing service error', orsStatus: ors.status, detail: message ?? null }, ors.status === 429 ? 429 : 502)
   }
 
   const data = (await ors.json()) as { durations?: (number | null)[][] }
