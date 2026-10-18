@@ -48,6 +48,11 @@ export function ResultsView({ data }: { data: RoundData }) {
 
   const winner = places.find((p) => p.id === round?.winner_place_id) ?? null
 
+  // Voting → results happens on the same page, so jump back up to the winner.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [])
+
   // Celebrate once per round per device.
   useEffect(() => {
     if (!round || !winner) return
@@ -151,13 +156,13 @@ export function ResultsView({ data }: { data: RoundData }) {
       {/* ---------- Directions ---------- */}
       <div className="mt-3 grid grid-cols-2 gap-2">
         <a href={links.google} target="_blank" rel="noreferrer">
-          <Button tabIndex={-1}>
-            <Navigation className="size-5" /> Google Maps
+          <Button tabIndex={-1} className="gap-1.5! px-3! text-[15px]! whitespace-nowrap">
+            <Navigation className="size-4" /> Google Maps
           </Button>
         </a>
         <a href={links.apple} target="_blank" rel="noreferrer">
-          <Button tabIndex={-1} variant="ghost">
-            <Navigation className="size-5" /> Apple Maps
+          <Button tabIndex={-1} variant="ghost" className="gap-1.5! px-3! text-[15px]! whitespace-nowrap">
+            <Navigation className="size-4" /> Apple Maps
           </Button>
         </a>
       </div>

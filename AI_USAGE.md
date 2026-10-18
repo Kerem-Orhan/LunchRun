@@ -23,4 +23,6 @@ The Congressional App Challenge asks entrants to disclose AI use. This file reco
 | 2026-10-18 | Debugged OpenRouteService (walking service down, driving fine) and Overpass outages; added fallbacks | Walking falls back to street distance at walking pace, then straight-line estimate |
 | 2026-10-18 | `overpass.ts`, `routing.ts`, `places.ts` + tests, `MapView` component | |
 
+| 2026-10-18 | Full app build: Supabase data layer + realtime, crew hub, create-lunch screen, live voting, results, history; `/api/places` proxy with Nominatim fallback | Tested end to end in the browser, incl. a simulated 2-person vote (realtime + repeat penalty verified) |
+
 <!-- Add a row each day. -->

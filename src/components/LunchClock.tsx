@@ -1,5 +1,5 @@
-import { animate, motion, useMotionValue, useTransform } from 'motion/react'
-import { useEffect } from 'react'
+import { animate, motion, useInView, useMotionValue, useTransform } from 'motion/react'
+import { useEffect, useRef } from 'react'
 
 export interface ClockSegment {
   label: string
@@ -29,13 +29,18 @@ const GAP = 6 // px gap between segments on the ring
 export function LunchClock({ lunchMinutes, segments, caption, captionTone = 'easy' }: LunchClockProps) {
   const used = segments.reduce((sum, s) => sum + s.minutes, 0)
 
+  // Start the animation only once the ring scrolls into view (it's below the fold on phones).
+  const ref = useRef<HTMLDivElement>(null)
+  const inView = useInView(ref, { once: true, amount: 0.4 })
+
   // Count-up number in the center.
   const count = useMotionValue(0)
   const rounded = useTransform(count, (v) => Math.round(v))
   useEffect(() => {
+    if (!inView) return
     const controls = animate(count, used, { duration: 1.6, ease: [0.16, 1, 0.3, 1], delay: 0.3 })
     return () => controls.stop()
-  }, [count, used])
+  }, [count, used, inView])
 
   // Precompute where each arc starts (as a fraction of the full circle).
   let cursor = 0
@@ -47,7 +52,7 @@ export function LunchClock({ lunchMinutes, segments, caption, captionTone = 'eas
   })
 
   return (
-    <div className="relative mx-auto aspect-square w-full max-w-[280px]">
+    <div ref={ref} className="relative mx-auto aspect-square w-full max-w-[280px]">
       {/* Soft glow under the ring */}
       <div className="absolute inset-[18%] rounded-full bg-ember/25 blur-3xl" />
 
@@ -88,8 +93,8 @@ export function LunchClock({ lunchMinutes, segments, caption, captionTone = 'eas
               strokeWidth={STROKE}
               strokeLinecap="round"
               strokeDashoffset={-arc.start * C - GAP / 2}
-              initial={{ strokeDasharray: `0 ${C}` }}
-              animate={{ strokeDasharray: `${dash} ${C}` }}
+              initial={{ strokeDasharray: `0 ${C}`, opacity: 0 }}
+              animate={inView ? { strokeDasharray: `${dash} ${C}`, opacity: 1 } : undefined}
               transition={{ duration: 0.7, delay: 0.35 + i * 0.22, ease: [0.16, 1, 0.3, 1] }}
             />
           )
@@ -114,7 +119,7 @@ export function LunchClock({ lunchMinutes, segments, caption, captionTone = 'eas
         {caption && (
           <motion.span
             initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
+            animate={inView ? { opacity: 1, y: 0 } : undefined}
             transition={{ delay: 1.8 }}
             className={`mt-3 rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
               captionTone === 'easy' ? 'bg-easy/12 text-easy ring-easy/25' : 'bg-tight/12 text-tight ring-tight/25'

@@ -152,7 +152,7 @@ export function VoteView({ data }: { data: RoundData }) {
         </div>
         {/* Progress bar */}
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-ink-3">
-          <motion.div className="h-full rounded-full bg-gradient-to-r from-ember to-easy" animate={{ width: `${members.length ? (votes.length / members.length) * 100 : 0}%` }} transition={{ ease: EASE, duration: 0.8 }} />
+          <motion.div className="h-full rounded-full bg-gradient-to-r from-ember to-easy" initial={{ width: 0 }} animate={{ width: `${members.length ? (votes.length / members.length) * 100 : 0}%` }} transition={{ ease: EASE, duration: 0.8 }} />
         </div>
       </motion.div>
 
@@ -269,13 +269,12 @@ function PickSlots({ picks, veto }: { picks: (PlaceRow | undefined)[]; veto?: Pl
       {[0, 1, 2].map((i) => {
         const p = picks[i]
         return (
-          <div key={i} className={`relative flex h-11 items-center gap-1.5 overflow-hidden rounded-xl px-2 ring-1 transition-colors ${p ? 'bg-ember/12 ring-ember/40' : 'border border-dashed border-cream/15'}`}>
+          <div key={i} className={`relative flex h-11 items-center gap-1.5 overflow-hidden rounded-xl px-2 transition-colors ${p ? 'bg-ember/12 ring-1 ring-ember/40' : 'border border-dashed border-cream/15'}`}>
             <span className={`grid size-5 shrink-0 place-items-center rounded-full font-display text-[11px] font-extrabold ${p ? 'bg-ember text-ink' : 'bg-ink-3 text-dim'}`}>{i + 1}</span>
-            <AnimatePresence mode="wait">
-              <motion.span key={p?.id ?? 'empty'} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className={`truncate text-xs font-semibold ${p ? 'text-cream' : 'text-dim'}`}>
-                {p?.name ?? '—'}
-              </motion.span>
-            </AnimatePresence>
+            {/* New key = remount = a quick slide-in; no exit animation, so fast tapping never lags. */}
+            <motion.span key={p?.id ?? 'empty'} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className={`truncate text-xs font-semibold ${p ? 'text-cream' : 'text-dim'}`}>
+              {p?.name ?? '—'}
+            </motion.span>
           </div>
         )
       })}
