@@ -6,10 +6,11 @@ import { applyView, DEFAULT_VIEW, topCuisines, typesPresent, type BallotView, ty
 import { decideRound, submitVote } from '../lib/db'
 import { formatTime, lunchEndsAt } from '../lib/round'
 import type { PlaceRow } from '../lib/types'
-import { everyoneHasVoted } from '../lib/voting'
+import { everyoneHasVoted, recentOsmIds } from '../lib/voting'
 import { Button } from './Button'
 import { MapView } from './MapView'
 import { PlaceCard, TYPE_LABEL } from './PlaceCard'
+import { formatCountdown, useNow } from './LiveLunchClock'
 import { Avatar, EASE, Screen, ShareButton, Spinner } from './ui'
 
 type RoundData = ReturnType<typeof useRound>
@@ -21,7 +22,7 @@ const SORTS: [SortBy, string][] = [
 ]
 
 export function VoteView({ data }: { data: RoundData }) {
-  const { round, crew, places, members, votes, me, myVote, isCreator, result } = data
+  const { round, crew, places, members, votes, visits, me, myVote, isCreator, result } = data
   const [picks, setPicks] = useState<string[]>([])
   const [veto, setVeto] = useState<string | null>(null)
   const [editing, setEditing] = useState(true)
@@ -61,6 +62,10 @@ export function VoteView({ data }: { data: RoundData }) {
 
   const placeById = new Map(places.map((p) => [p.id, p]))
   const visible = applyView(places, view)
+  // Places won in the crew's last few lunches (before this one) — they get the repeat penalty.
+  const recent = new Set(
+    recentOsmIds(visits.filter((v) => new Date(v.visited_at) < new Date(round.created_at)).map((v) => ({ osmId: v.osm_id, visitedAt: v.visited_at }))),
+  )
   const cuisines = topCuisines(places)
   const types = typesPresent(places)
   const filtering = view.type !== 'all' || !!view.cuisine || !!view.query.trim()
@@ -121,7 +126,8 @@ export function VoteView({ data }: { data: RoundData }) {
         {crew && <p className="font-mono text-xs font-semibold tracking-[0.2em] text-ember">CODE {crew.code}</p>}
         <h1 className="mt-1 font-display text-[clamp(2rem,7vw,2.75rem)] leading-[0.95] font-extrabold tracking-[-0.03em]">Pick your top 3</h1>
         <p className="mt-2 text-[15px] text-muted">
-          Tap in order of preference. One “No way” veto. Lunch ends <span className="font-semibold text-cream">{formatTime(lunchEndsAt(round))}</span>.
+          Tap in order of preference. One “No way” veto. Lunch ends <span className="font-semibold text-cream">{formatTime(lunchEndsAt(round))}</span>{' '}
+          <BellCountdown endsAt={lunchEndsAt(round)} />
         </p>
       </div>
 
@@ -262,6 +268,7 @@ export function VoteView({ data }: { data: RoundData }) {
             estimated={round.estimated}
             rank={picks.includes(p.id) ? picks.indexOf(p.id) + 1 : null}
             vetoed={veto === p.id}
+            recent={recent.has(p.osm_id)}
             highlighted={selected === p.id}
             onPick={() => togglePick(p.id)}
             onVeto={() => toggleVeto(p.id)}
@@ -347,5 +354,17 @@ function Chip({ active, accent, onClick, children }: { active: boolean; accent?:
     >
       {children}
     </button>
+  )
+}
+
+/** Ticking "bell in 32:10" chip. Its own component so only it re-renders every second. */
+function BellCountdown({ endsAt }: { endsAt: Date }) {
+  const now = useNow(1000)
+  const left = (endsAt.getTime() - now) / 1000
+  if (left <= 0) return null
+  return (
+    <span className={`ml-1 inline-flex rounded-full px-2 py-0.5 align-middle font-mono text-xs font-semibold tabular-nums ring-1 ${left < 600 ? 'bg-veto/10 text-veto ring-veto/25' : 'bg-cream/5 text-muted ring-cream/10'}`}>
+      bell in {formatCountdown(left)}
+    </span>
   )
 }

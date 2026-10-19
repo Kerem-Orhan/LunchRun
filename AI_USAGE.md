@@ -29,4 +29,6 @@ The Congressional App Challenge asks entrants to disclose AI use. This file reco
 
 | 2026-10-18 | Ballot of up to 60 with sort/type/cuisine/search filters (`ballot.ts` + tests); deploy-safe lazy loading + error boundary; Photon address search | |
 
+| 2026-10-18 | Group history (host code reuse, last picks, favorites, "Recent −2" badges), plainer Home page, live ticking lunch clock, home-screen install + link preview, README rewrite | `history.ts`, `LiveLunchClock` + tests |
+
 <!-- Add a row each day. -->

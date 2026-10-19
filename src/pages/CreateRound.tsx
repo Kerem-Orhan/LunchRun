@@ -1,15 +1,16 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { Car, ChevronDown, Crosshair, Footprints, MapPin, Minus, Plus, RotateCw, Search, SearchX, Sparkles, Utensils } from 'lucide-react'
+import { Car, ChevronDown, Crosshair, Footprints, History, MapPin, Minus, Plus, RefreshCw, RotateCw, Search, SearchX, Sparkles, Star, Utensils } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button } from '../components/Button'
 import { MapView } from '../components/MapView'
 import { NameGate } from '../components/NameGate'
 import { Avatar, EASE, FullPageLoader, Notice, QRCode, Screen, ScreenHeader, Segmented, ShareButton, Spinner } from '../components/ui'
-import { BALLOT_SIZE, createRound, getCrewByCode, joinCrewPresence, type PresentPerson } from '../lib/db'
+import { BALLOT_SIZE, createCrew, createRound, getCrewByCode, joinCrewPresence, listVisits, type PresentPerson } from '../lib/db'
 import { DEFAULT_BUFFER_MINUTES, DEFAULT_EAT_MINUTES, PREFILTER_RADIUS_METERS, type LatLng, type RoundRules, type TravelMode } from '../lib/feasibility'
 import { getCurrentPosition, searchAddress, type GeoResult } from '../lib/geocode'
-import { getClientId, getDisplayName } from '../lib/identity'
+import { getClientId, getDisplayName, setHostCrew } from '../lib/identity'
+import { relativeDay, summarizeHistory, type HistorySummary } from '../lib/history'
 import { fetchNearbyPlaces, type OsmPlace } from '../lib/overpass'
 import { pickBallot, rankReachable } from '../lib/places'
 import { fetchTravelMinutes } from '../lib/routing'
@@ -166,6 +167,7 @@ function CreateRoundInner() {
           <ScreenHeader back="/" eyebrow="You’re the host" title="Today’s lunch" />
 
           <InviteCard code={crew.code} crewId={crew.id} />
+          <HistoryCard crewId={crew.id} />
 
           <Section n={1} title="Where are you leaving from?">
             <LocationPicker value={start} onChange={chooseStart} />
@@ -552,7 +554,22 @@ function Stat({ value, label, accent }: { value: number; label: string; accent: 
 
 /** Code + QR + share, and a live row of who has joined while the host sets things up. */
 function InviteCard({ code, crewId }: { code: string; crewId: string }) {
+  const navigate = useNavigate()
   const [people, setPeople] = useState<PresentPerson[]>([])
+  const [renewing, setRenewing] = useState(false)
+
+  /** Different group today? Start over with a fresh code (and empty history). */
+  async function newCode() {
+    if (!window.confirm('Start with a new code? Your current history stays with the old code.')) return
+    setRenewing(true)
+    try {
+      const crew = await createCrew('Lunch crew')
+      setHostCrew(crew.code)
+      navigate(`/c/${crew.code}/new`, { replace: true })
+    } finally {
+      setRenewing(false)
+    }
+  }
   const url = `${window.location.origin}/c/${code}`
   const me = getClientId()
 
@@ -573,8 +590,18 @@ function InviteCard({ code, crewId }: { code: string; crewId: string }) {
         <div className="min-w-0">
           <p className="text-xs font-semibold tracking-[0.18em] text-muted uppercase">Friends join with</p>
           <p className="font-mono text-4xl leading-tight font-semibold tracking-[0.14em]">{code}</p>
-          <div className="mt-1.5">
+          <div className="mt-1.5 flex items-center gap-2">
             <ShareButton url={url} title="LunchRun" />
+            <button
+              type="button"
+              onClick={newCode}
+              disabled={renewing}
+              title="New code for a different group"
+              aria-label="New code for a different group"
+              className="grid size-11 place-items-center rounded-xl text-dim ring-1 ring-cream/10 transition hover:text-cream disabled:opacity-50"
+            >
+              <RefreshCw className={`size-4 ${renewing ? 'animate-spin' : ''}`} />
+            </button>
           </div>
         </div>
       </div>
@@ -606,6 +633,57 @@ function InviteCard({ code, crewId }: { code: string; crewId: string }) {
           </>
         )}
       </div>
+    </motion.section>
+  )
+}
+
+/** Last couple of winners and the crew's go-to places (hidden until there's history). */
+function HistoryCard({ crewId }: { crewId: string }) {
+  const [summary, setSummary] = useState<HistorySummary | null>(null)
+
+  useEffect(() => {
+    listVisits(crewId, 50)
+      .then((v) => setSummary(summarizeHistory(v)))
+      .catch(() => setSummary(null))
+  }, [crewId])
+
+  if (!summary || summary.recent.length === 0) return null
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.05, ease: EASE }}
+      className="mb-6 grid gap-3 rounded-3xl bg-cream/[0.03] p-4 ring-1 ring-cream/10"
+    >
+      <div>
+        <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-[0.18em] text-dim uppercase">
+          <History className="size-3.5" /> Last picks
+        </p>
+        <ul className="grid gap-1.5">
+          {summary.recent.map((v) => (
+            <li key={v.id} className="flex items-baseline justify-between gap-3">
+              <span className="truncate font-semibold">{v.name}</span>
+              <span className="shrink-0 text-xs text-dim">{relativeDay(v.visited_at)}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-1.5 text-xs text-tight/80">Recent picks get −2 points so you don’t go to the same place every day.</p>
+      </div>
+      {summary.favorites.length > 0 && (
+        <div className="border-t border-cream/10 pt-3">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-[0.18em] text-dim uppercase">
+            <Star className="size-3.5" /> Crew favorites
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {summary.favorites.map((f) => (
+              <span key={f.name} className="inline-flex items-center gap-1.5 rounded-full bg-ember/10 px-3 py-1 text-sm font-semibold ring-1 ring-ember/25">
+                {f.name} <span className="text-xs text-ember tabular-nums">×{f.count}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </motion.section>
   )
 }

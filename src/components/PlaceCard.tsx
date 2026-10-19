@@ -1,5 +1,5 @@
 import { motion } from 'motion/react'
-import { Ban, Car, Coffee, Footprints, Sandwich, Store, UtensilsCrossed } from 'lucide-react'
+import { Ban, Car, Coffee, Footprints, Repeat2, Sandwich, Store, UtensilsCrossed } from 'lucide-react'
 import type { PlaceType } from '../lib/feasibility'
 import type { PlaceRow } from '../lib/types'
 import { StatusBadge } from './ui'
@@ -23,6 +23,8 @@ interface PlaceCardProps {
   estimated?: boolean
   rank?: number | null // 1–3 when picked
   vetoed?: boolean
+  /** The crew went here in its last few lunches (gets the repeat penalty). */
+  recent?: boolean
   highlighted?: boolean
   onPick?: () => void
   onVeto?: () => void
@@ -33,7 +35,7 @@ interface PlaceCardProps {
  * One place on the ballot. Tap the card to rank it (1st → 2nd → 3rd),
  * tap "No way" to veto.
  */
-export function PlaceCard({ place, mode, estimated, rank, vetoed, highlighted, onPick, onVeto, index = 0 }: PlaceCardProps) {
+export function PlaceCard({ place, mode, estimated, rank, vetoed, recent, highlighted, onPick, onVeto, index = 0 }: PlaceCardProps) {
   const Icon = TYPE_ICON[place.type]
   const picked = rank != null
 
@@ -85,6 +87,11 @@ export function PlaceCard({ place, mode, estimated, rank, vetoed, highlighted, o
               {estimated ? '≈' : ''}
               {Math.round(Number(place.travel_minutes))} min
             </span>
+            {recent && (
+              <span title="You went here recently, so it gets −2 points" className="inline-flex items-center gap-1 rounded-full bg-tight/10 px-2 py-1 text-xs font-semibold text-tight ring-1 ring-tight/25">
+                <Repeat2 className="size-3" /> Recent −2
+              </span>
+            )}
             {place.diet_tags.map((d) => (
               <span
                 key={d}

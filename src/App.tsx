@@ -19,11 +19,8 @@ export default function App() {
   return (
     <>
       <Background />
-      <header className="sticky top-0 z-40 mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 backdrop-blur-md sm:px-6 [mask-image:linear-gradient(black_70%,transparent)]">
+      <header className="sticky top-0 z-40 mx-auto flex w-full max-w-6xl items-center justify-between px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-4 backdrop-blur-md sm:px-6 [mask-image:linear-gradient(black_70%,transparent)]">
         <Logo />
-        <span className="rounded-full bg-cream/5 px-3 py-1 font-mono text-[11px] font-semibold tracking-wider text-muted ring-1 ring-cream/10">
-          BETA
-        </span>
       </header>
 
       {/* Each route fades/slides in and out as you navigate. */}

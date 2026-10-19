@@ -1,14 +1,14 @@
 import confetti from 'canvas-confetti'
 import { motion } from 'motion/react'
 import { Ban, Clock, Navigation, Plus, Repeat2, Scale, Trophy } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { useRound } from '../hooks/useRound'
 import { breakdownFor, directionsLinks, formatTime, leaveByFor, lunchEndsAt } from '../lib/round'
 import type { PlaceRow } from '../lib/types'
 import { BORDA_POINTS, REPEAT_PENALTY, type TieBreak } from '../lib/voting'
 import { Button } from './Button'
-import { LunchClock, type ClockSegment } from './LunchClock'
+import { currentPhase, formatCountdown, LiveLunchClock, useNow, type LiveSegment } from './LiveLunchClock'
 import { MapView } from './MapView'
 import { TYPE_ICON, TYPE_LABEL } from './PlaceCard'
 import { Avatar, EASE, Screen, StatusBadge } from './ui'
@@ -20,16 +20,6 @@ const TIE_BREAK_COPY: Record<TieBreak, string | null> = {
   status: 'Tied on points. Won the tie-break by being Easy instead of Tight.',
   time: 'Tied on points. Won the tie-break with the shorter total time.',
   random: 'Perfect tie. Won by a coin flip (the same on every phone).',
-}
-
-/** Re-renders every 15s so the "leave in X min" countdown stays fresh. */
-function useNow(intervalMs = 15_000) {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), intervalMs)
-    return () => clearInterval(t)
-  }, [intervalMs])
-  return now
 }
 
 function fireConfetti() {
@@ -44,7 +34,7 @@ function fireConfetti() {
 export function ResultsView({ data }: { data: RoundData }) {
   const { round, crew, places, members, votes, result } = data
   const navigate = useNavigate()
-  const now = useNow()
+  const now = useNow(1000) // ticks every second for the live countdowns
 
   const winner = places.find((p) => p.id === round?.winner_place_id) ?? null
 
@@ -79,20 +69,22 @@ export function ResultsView({ data }: { data: RoundData }) {
   const Icon = TYPE_ICON[winner.type]
   const { breakdown, spareMinutes } = breakdownFor(round, winner)
   const leave = leaveByFor(round, winner)
-  const minsToLeave = Math.round((leave.getTime() - now) / 60_000)
+  const secondsToLeave = (leave.getTime() - now) / 1000
   const lunchOver = now > lunchEndsAt(round).getTime()
   const links = directionsLinks(round, winner)
   const placeById = new Map(places.map((p) => [p.id, p]))
   const maxScore = Math.max(1, ...result.rows.map((r) => r.score))
 
-  const segments: ClockSegment[] = [
+  const segments: LiveSegment[] = [
     { label: round.mode === 'walking' ? 'Walk there' : 'Drive there', minutes: breakdown.travelThere, color: 'var(--color-ember)' },
     ...(breakdown.parking ? [{ label: 'Park', minutes: breakdown.parking, color: '#6be0f3' }] : []),
     { label: 'Order', minutes: breakdown.wait, color: 'var(--color-tight)' },
     { label: 'Eat', minutes: breakdown.eat, color: 'var(--color-easy)' },
-    { label: 'Back', minutes: breakdown.travelBack, color: 'var(--color-ember-soft)' },
+    { label: round.mode === 'walking' ? 'Walk back' : 'Drive back', minutes: breakdown.travelBack, color: 'var(--color-ember-soft)' },
     { label: 'Buffer', minutes: breakdown.buffer, color: 'var(--color-plum)' },
   ].filter((s) => s.minutes > 0)
+  const startsAt = new Date(round.lunch_starts_at ?? round.created_at)
+  const phase = currentPhase(now, startsAt, lunchEndsAt(round), segments)
 
   return (
     <Screen>
@@ -138,7 +130,7 @@ export function ResultsView({ data }: { data: RoundData }) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.55, duration: 0.6, ease: EASE }}
         className={`mt-3 flex items-center justify-between gap-4 rounded-3xl px-5 py-4 ring-1 ${
-          lunchOver ? 'bg-cream/[0.03] ring-cream/10' : minsToLeave <= 0 ? 'bg-veto/12 ring-veto/30' : 'bg-easy/10 ring-easy/25'
+          lunchOver ? 'bg-cream/[0.03] ring-cream/10' : secondsToLeave <= 0 ? 'bg-veto/12 ring-veto/30' : 'bg-easy/10 ring-easy/25'
         }`}
       >
         <div>
@@ -147,8 +139,14 @@ export function ResultsView({ data }: { data: RoundData }) {
           </p>
           <p className="font-display text-4xl font-extrabold tracking-tight tabular-nums">{formatTime(leave)}</p>
         </div>
-        <p className={`text-right text-sm font-bold ${lunchOver ? 'text-dim' : minsToLeave <= 0 ? 'text-veto' : 'text-easy'}`}>
-          {lunchOver ? 'Lunch is over' : minsToLeave <= 0 ? 'Go now!' : `in ${minsToLeave} min`}
+        <p className={`text-right text-sm font-bold ${lunchOver ? 'text-dim' : secondsToLeave <= 0 ? 'text-veto' : 'text-easy'}`}>
+          {lunchOver ? (
+            'Lunch is over'
+          ) : secondsToLeave <= 0 ? (
+            'Go now!'
+          ) : (
+            <span className="font-mono text-lg tabular-nums">in {formatCountdown(secondsToLeave)}</span>
+          )}
           <span className="block text-xs font-medium text-muted">back by {formatTime(lunchEndsAt(round))}</span>
         </p>
       </motion.section>
@@ -167,22 +165,21 @@ export function ResultsView({ data }: { data: RoundData }) {
         </a>
       </div>
 
-      {/* ---------- Time budget ---------- */}
-      <Card title="The time budget" delay={0.65}>
-        <LunchClock
-          lunchMinutes={round.lunch_minutes}
-          segments={segments}
-          caption={`${winner.status === 'easy' ? 'Easy' : 'Tight'} · ${Math.max(0, Math.round(spareMinutes))} min spare`}
-          captionTone={winner.status}
-        />
-        <div className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-1.5">
-          {segments.map((s) => (
-            <span key={s.label} className="inline-flex items-center gap-1.5 text-[13px] text-muted">
-              <span className="size-2 rounded-full" style={{ background: s.color }} />
-              {s.label} <span className="text-dim tabular-nums">{Math.round(s.minutes)}m</span>
-            </span>
-          ))}
+      {/* ---------- Live lunch clock ---------- */}
+      <Card title={`Lunch clock · ${winner.status === 'easy' ? 'Easy' : 'Tight'}, ${Math.max(0, Math.round(spareMinutes))} min spare`} delay={0.65}>
+        <LiveLunchClock startsAt={startsAt} endsAt={lunchEndsAt(round)} segments={segments} tone={winner.status} />
+        <div className="mt-5 flex flex-wrap justify-center gap-x-4 gap-y-1.5">
+          {segments.map((s, i) => {
+            const active = phase.kind === 'segment' && phase.index === i
+            return (
+              <span key={s.label} className={`inline-flex items-center gap-1.5 text-[13px] transition-colors ${active ? 'font-semibold text-cream' : 'text-muted'}`}>
+                <span className={`rounded-full ${active ? 'size-2.5' : 'size-2'}`} style={{ background: s.color }} />
+                {s.label} <span className="text-dim tabular-nums">{Math.round(s.minutes)}m</span>
+              </span>
+            )
+          })}
         </div>
+        <p className="mt-3 text-center text-xs text-dim">The ring is your whole lunch. Gray is free time; the dot is now.</p>
       </Card>
 
       {/* ---------- Map ---------- */}

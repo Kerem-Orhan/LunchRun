@@ -41,3 +41,16 @@ export function getClientId(): string {
   return id
 }
 
+
+// ---------- Host's crew (so history carries over between days) ----------
+
+const HOST_CREW_KEY = 'lunchrun:host-crew'
+
+/** The code this device last hosted with. Reusing it keeps lunch history + the repeat penalty. */
+export function getHostCrew(): string | null {
+  return read(HOST_CREW_KEY)
+}
+
+export function setHostCrew(code: string) {
+  write(HOST_CREW_KEY, code)
+}
